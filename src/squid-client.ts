@@ -6,7 +6,6 @@ async function hydrateSquid(){
   hydrate(h(App, {}), document.body);
 }
 
-export {h, Fragment} from 'preact';
 export * from 'preact/hooks';
 
 hydrateSquid();
