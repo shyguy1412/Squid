@@ -4,21 +4,34 @@ import { program } from "commander";
 import { existsSync } from "fs";
 import { rm } from "fs/promises";
 import nodemon from "nodemon";
-import { getESBuildContext, getSquidContext } from "./modules/compile";
+import { getComponentContext, getSquidContext } from "./modules/compile";
 
-async function build() {
+async function getContext() {
   if (existsSync('./build'))
     await rm('./build', { recursive: true });
 
-  const esbuildContext = await getESBuildContext();
+  const componentContext = await getComponentContext();
   const squidContext = await getSquidContext();
 
-  await esbuildContext.rebuild();
-  await squidContext.rebuild();
+  const rebuild = async () => {
+    await componentContext.rebuild();
+    await squidContext.rebuild();
+  };
+
+  const watch = async () => {
+    await componentContext.watch();
+    await squidContext.watch();
+  };
+
+  const dispose = async () => {
+    await componentContext.dispose();
+    await squidContext.dispose();
+  };
 
   return {
-    esbuildContext,
-    squidContext
+    rebuild,
+    watch,
+    dispose
   }
 }
 
@@ -26,10 +39,10 @@ program
   .command('build')
   .description('Build Project for production')
   .action(async () => {
-    const { esbuildContext, squidContext } = await build();
+    const { rebuild, dispose } = await getContext();
 
-    esbuildContext.dispose();
-    squidContext.dispose();
+    await rebuild();
+    await dispose();
 
   });
 
@@ -38,10 +51,11 @@ program
   .description('Starts Squid server and rebuilds development build of the Project on file changes')
   .action(async () => {
 
-    const { esbuildContext, squidContext } = await build();
+    const { rebuild, watch } = await getContext();
 
-    esbuildContext.watch();
-    squidContext.watch();
+    await rebuild();
+
+    await watch();
 
     nodemon({
       scriptPosition: 0,
