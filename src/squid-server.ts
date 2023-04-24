@@ -23,15 +23,11 @@ function isStaticRequest(path: string) {
 async function serveStatic(req: Request, res: Response) {
   const staticPath = './build' + req.originalUrl;
 
-  console.log(staticPath);
-  
   if (!existsSync(staticPath)) {
     res.status(404);
     res.send('Static content not found: ' + path.resolve(staticPath));
     return;
   }
-
-  console.log(path.basename(staticPath).replaceAll('.mjs', '.js'));
 
   res.contentType(path.basename(staticPath).replaceAll('.mjs', '.js'));
 
@@ -45,7 +41,7 @@ app.get('/*', async (req, res) => {
     return;
   }
 
-  const documentPath = path.resolve(process.cwd(), 'build', 'document.mjs');
+  const documentPath = path.resolve(process.cwd(), 'build/pages', 'document.mjs');
   const appPath = path.join(process.cwd(), 'build/pages', req.originalUrl == '/' ? '' : req.originalUrl, 'index.mjs');
 
   if (!existsSync(appPath)) {
@@ -63,14 +59,7 @@ app.get('/*', async (req, res) => {
   }), {}));
 });
 
-export function createSquidServer() {
-  return {
-    start: () => {
-      app.listen(port, () => {
-        console.log(`✅ Express server listening on port ${port}`);
-      });
-    }
-  }
-}
 
-createSquidServer().start();
+app.listen(port, () => {
+  console.log(`✅ Express server listening on port ${port}`);
+});
