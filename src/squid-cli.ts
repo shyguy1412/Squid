@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 
 import { program } from "commander";
+import { existsSync } from "fs";
+import { rm } from "fs/promises";
 import nodemon from "nodemon";
 import { getESBuildContext, getSquidContext } from "./modules/compile";
 
 async function build() {
+  if (existsSync('./build'))
+    await rm('./build', { recursive: true });
+
   const esbuildContext = await getESBuildContext();
   const squidContext = await getSquidContext();
 
