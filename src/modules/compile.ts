@@ -12,8 +12,9 @@ export async function getESBuildContext() {
     outdir: 'build',
     format: 'esm',
     platform: 'browser',
-    external: ['preact'],
+    external: ['preact/hooks'],
     logLevel: 'info',
+    tsconfig: 'tsconfig.export.json',
     outExtension: { '.js': '.mjs' }
   });
 }
