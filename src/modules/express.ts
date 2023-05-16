@@ -7,7 +7,7 @@ import { readdir, readFile } from "fs/promises";
 import { JSX } from "preact";
 import { ApiHandler } from "./api";
 
-async function getNextPathFragments(dir: string) {
+async function getFragmentsFromPath(dir: string) {
   return (await readdir(dir, { withFileTypes: true }))
     // .filter(dirent => dirent.isDirectory())
     .map(dirent => dirent.name.replace('.mjs', ''));
@@ -17,28 +17,19 @@ async function resolveRequestURLToModulePath(url: string) {
   const pathFragments = url.substring(1).split('/');
   const moduleFragments: string[] = [];
   const queryParams: { [key: string]: string; } = {};
-  const resolveFragments = await getNextPathFragments('./build/pages');
 
-  await resolveRecursively(pathFragments, resolveFragments);
-
-  async function resolveRecursively(pathFragments: string[], dirs: string[]) {
-    if (dirs.includes(pathFragments[0])) {
-      moduleFragments.push(pathFragments[0]);
-      if (pathFragments.length == 1) return;
-    } else {
-
-      const dynamicFragment = dirs.filter(string => /\{.*\}/.test(string))[0];
-
-      if (dynamicFragment) {
-        moduleFragments.push(dynamicFragment);
-        queryParams[dynamicFragment.slice(1, -1)] = pathFragments[0];
-      }
-      if (pathFragments.length == 1) return;
+  for (const fragment of pathFragments) {
+    const possibleModuleFragments = await getFragmentsFromPath(join('./build/pages', moduleFragments.join('/')));
+    if (possibleModuleFragments.includes(fragment)) {
+      moduleFragments.push(fragment);
+      continue;
     }
-    await resolveRecursively(
-      pathFragments.slice(1),
-      await getNextPathFragments(join('./build/pages', moduleFragments.join('/')))
-    );
+
+    const dynamicFragment = possibleModuleFragments.filter(string => /\{.*\}/.test(string))[0];
+    if (dynamicFragment) {
+      moduleFragments.push(dynamicFragment);
+      queryParams[dynamicFragment.slice(1, -1)] = fragment;
+    }
   }
 
   return {
