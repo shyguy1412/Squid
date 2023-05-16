@@ -5,6 +5,10 @@ import { existsSync } from "fs";
 import { rm } from "fs/promises";
 import nodemon from "nodemon";
 import { getComponentContext, getSquidContext } from "./modules/compile";
+import { server } from "./modules/server";
+
+import type * as Types from "./types";
+export {Types};
 
 async function getContext() {
   if (existsSync('./build'))
@@ -19,13 +23,13 @@ async function getContext() {
   };
 
   const watch = async () => {
-    await componentContext.watch();
-    await squidContext.watch();
+    componentContext.watch();
+    squidContext.watch();
   };
 
   const dispose = async () => {
-    await componentContext.dispose();
-    await squidContext.dispose();
+    componentContext.dispose();
+    squidContext.dispose();
   };
 
   return {
@@ -52,9 +56,8 @@ program
   .action(async () => {
 
     const { rebuild, watch } = await getContext();
-
+    
     await rebuild();
-
     await watch();
 
     nodemon({
@@ -68,6 +71,7 @@ program
   .command('start')
   .description('Starts the Squid server')
   .action(() => {
+    server.start();
   });
 
 program.parse();

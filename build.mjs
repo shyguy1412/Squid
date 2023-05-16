@@ -16,45 +16,42 @@ const mainContext = await context({
   logLevel: 'info'
 });
 
-mainContext.rebuild();
+await mainContext.rebuild();
 
-if (WATCH) {
-  mainContext.watch();
-}
+if (WATCH)  mainContext.watch();
+else mainContext.dispose();
 
 const serverContext = await context({
   entryPoints: ['./src/squid-server.ts'],
   outfile: './dist/squid-server.mjs',
   minify: !WATCH,
-  // bundle: true,
+  bundle: true,
   format: 'esm',
   platform: 'node',
   define: WATCH ? undefined : {
     'process.env.NODE_ENV': "'production'",
   },
-  // external: ['preact'],
+  external: ['path', 'express'],
   logLevel: 'info'
 });
 
-serverContext.rebuild();
+await serverContext.rebuild();
 
-if (WATCH) {
-  serverContext.watch();
-}
+if (WATCH)  serverContext.watch();
+else serverContext.dispose();
 
-const clientContext = await context({
-  entryPoints: ['./src/squid-client.ts'],
-  outfile: './dist/squid-client.js',
+const hydrate = await context({
+  entryPoints: ['./src/modules/hydrate.ts'],
+  outfile: './dist/hydrate.js',
   minify: !WATCH,
-  bundle: true,
+  // bundle: true,
   format: 'esm',
   platform: 'browser',
   // external: ['preact'],
   logLevel: 'info'
 });
 
-clientContext.rebuild();
+await hydrate.rebuild();
 
-if (WATCH) {
-  clientContext.watch();
-}
+if (WATCH)  hydrate.watch();
+else hydrate.dispose();

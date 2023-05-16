@@ -6,6 +6,7 @@
     "strict": true,
     "module": "esnext",
     "moduleResolution": "node",
+    "declaration": true,
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": ".",
