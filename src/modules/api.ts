@@ -1,2 +1,3 @@
 import { Request, Response } from "express";
-export type ApiHandler = (req: Request, res: Response) => void;
+export type SquidApiRequest = Request & { queryParams: { [key: string]: string; }; };
+export type ApiHandler = (req: SquidApiRequest, res: Response) => void;

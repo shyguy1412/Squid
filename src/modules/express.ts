@@ -1,13 +1,53 @@
 import express from "express";
-import { basename, join, resolve } from "path";
+import { basename, resolve, join } from "path";
 import { existsSync } from 'fs';
 import { pathToFileURL } from 'url';
 import { Response, Request } from "express-serve-static-core";
-import { readFile } from "fs/promises";
+import { readdir, readFile } from "fs/promises";
 import { JSX } from "preact";
 import { ApiHandler } from "./api";
-import { glob } from "glob";
 
+async function getNextPathFragments(dir: string) {
+  return (await readdir(dir, { withFileTypes: true }))
+    // .filter(dirent => dirent.isDirectory())
+    .map(dirent => dirent.name.replace('.mjs', ''));
+}
+
+async function resolveRequestURLToModulePath(url: string) {
+  const pathFragments = url.substring(1).split('/');
+  const moduleFragments: string[] = [];
+  const queryParams: { [key: string]: string; } = {};
+  const resolveFragments = await getNextPathFragments('./build/pages');
+
+  await resolveRecursively(pathFragments, resolveFragments);
+
+  async function resolveRecursively(pathFragments: string[], dirs: string[]) {
+    if (dirs.includes(pathFragments[0])) {
+      moduleFragments.push(pathFragments[0]);
+      if (pathFragments.length == 1) return;
+    } else {
+
+      const dynamicFragment = dirs.filter(string => /\{.*\}/.test(string))[0];
+
+      if (dynamicFragment) {
+        console.log(dynamicFragment, pathFragments[0]);
+        
+        moduleFragments.push(dynamicFragment);
+        queryParams[dynamicFragment.slice(1, -1)] = pathFragments[0];
+      }
+      if (pathFragments.length == 1) return;
+    }
+    await resolveRecursively(
+      pathFragments.slice(1),
+      await getNextPathFragments(join('./build/pages', moduleFragments.join('/')))
+    );
+  }
+
+  return {
+    modulePath: './build/pages/' + moduleFragments.join('/') + '.mjs',
+    queryParams
+  };
+}
 
 export default function () {
   const app = express();
@@ -40,15 +80,16 @@ export default function () {
       return;
     }
 
-    const appPath = (await glob(`build/pages/${req.originalUrl}{/index.mjs,.mjs}`))[0];
+    // const appPath = (await glob(`build/pages/${req.originalUrl}{/index.mjs,.mjs}`))[0];
+    const { modulePath, queryParams } = await resolveRequestURLToModulePath(req.originalUrl);
 
-    if (!existsSync(appPath)) {
+    if (!existsSync(modulePath)) {
       res.status(404);
-      res.send('Page not found: ' + appPath);
+      res.send('Page not found: ' + modulePath);
       return;
     }
 
-    const module = await import(pathToFileURL(appPath).toString()) as {
+    const module = await import(pathToFileURL(modulePath).toString()) as {
       default: () => JSX.Element,
       h: typeof import('preact').h,
       render: typeof import('preact-render-to-string').render;
@@ -63,7 +104,7 @@ export default function () {
       return;
     }
 
-    module.default(req, res);
+    module.default(Object.assign(req, { queryParams }), res);
 
   });
   return app;
