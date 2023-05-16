@@ -30,8 +30,6 @@ async function resolveRequestURLToModulePath(url: string) {
       const dynamicFragment = dirs.filter(string => /\{.*\}/.test(string))[0];
 
       if (dynamicFragment) {
-        console.log(dynamicFragment, pathFragments[0]);
-        
         moduleFragments.push(dynamicFragment);
         queryParams[dynamicFragment.slice(1, -1)] = pathFragments[0];
       }
