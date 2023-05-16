@@ -5,6 +5,8 @@ import { pathToFileURL } from 'url';
 import { Response, Request } from "express-serve-static-core";
 import { readFile } from "fs/promises";
 import { JSX } from "preact";
+import { ApiHandler } from "./api";
+import { glob } from "glob";
 
 
 export default function () {
@@ -18,7 +20,6 @@ export default function () {
     return (/.*\..+/).test(pathFragments[pathFragments.length - 1]);
   }
 
-
   async function serveStatic(req: Request, res: Response) {
     const staticPath = './build' + req.originalUrl;
 
@@ -29,7 +30,6 @@ export default function () {
     }
 
     res.contentType(basename(staticPath).replaceAll('.mjs', '.js'));
-
     res.send(await readFile(staticPath));
   }
 
@@ -40,28 +40,30 @@ export default function () {
       return;
     }
 
-    const appPath = join(process.cwd(), 'build/pages', req.originalUrl == '/' ? '' : req.originalUrl, 'index.mjs');
-
-    console.log(process.cwd());
-    
+    const appPath = (await glob(`build/pages/${req.originalUrl}{/index.mjs,.mjs}`))[0];
 
     if (!existsSync(appPath)) {
-
       res.status(404);
       res.send('Page not found: ' + appPath);
       return;
     }
 
-    const { default: App, h, render } = await import(pathToFileURL(appPath).toString()) as {
+    const module = await import(pathToFileURL(appPath).toString()) as {
       default: () => JSX.Element,
       h: typeof import('preact').h,
       render: typeof import('preact-render-to-string').render;
-    };
+    } | { default: ApiHandler; };
 
-    const renderedHTML = render(h(App, {}))
-      .replace('<head>', '<head><script src="/hydrate.js" defer></script>');
+    if ('h' in module && 'render' in module) {
+      const { render, h, default: App } = module;
+      const renderedHTML = render(h(App, {}))
+        .replace('<head>', '<head><script src="/hydrate.js" defer></script>');
 
-    res.send(renderedHTML);
+      res.send(renderedHTML);
+      return;
+    }
+
+    module.default(req, res);
 
   });
   return app;

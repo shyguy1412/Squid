@@ -2,7 +2,7 @@
   "name": "squid",
   "version": "1.0.0",
   "description": "Preact SSR Framework",
-  "main": "dist/squid-cli.js",
+  "main": "src/index.ts",
   "scripts": {
     "build": "node build.mjs",
     "dev": "node build.mjs --watch",

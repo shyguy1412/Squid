@@ -7,36 +7,39 @@ import path from "path";
 
 export async function getComponentContext() {
   async function buildPages() {
+    const componentSSRInjection =
+      '\nexport {h, hydrate} from \'preact\'\n'
+      + 'export {render} from \'preact-render-to-string\'\n';
+
     const promises: Promise<BuildResult>[] = [];
-
     const start = Date.now();
-
-    const files = await glob('./src/pages/**/*.tsx');
+    const files = await glob('./src/pages/**/*.{ts,tsx}');
     for (const file of files) {
+      const isComponent = file.includes('.tsx');
+      const fileName = path.basename(file.replace(/\.ts[x]?/, '.mjs'));
+      const destinationPath = file.replace(path.basename(file), '').replace('src', 'build');
+      
       promises.push(build({
         bundle: true,
-        outfile: file.replace('src', 'build').replace('.tsx', '.mjs'),
+        outfile: path.join(destinationPath, fileName),
         format: 'esm',
         platform: 'browser',
-        // logLevel: 'info',
         tsconfig: 'tsconfig.export.json',
         jsxFactory: 'h',
         jsxFragment: 'Fragment',
-        // outExtension: { '.js': '.mjs' },
         stdin: {
-          contents: (await readFile(file)).toString('utf8')
-            + '\nexport {h, hydrate} from \'preact\'\n'
-            + 'export {render} from \'preact-render-to-string\'\n',
           loader: 'tsx',
-          resolveDir: path.resolve('.')
+          resolveDir: path.resolve('.'),
+          contents: (await readFile(file)).toString('utf8')
+            + (isComponent ? componentSSRInjection : ''),
         }
       }));
+      console.log(`\t- ${path.join(destinationPath, fileName)}`);
     }
     await Promise.all(promises);
-    console.log(`Compiled pages in ${Date.now() - start}ms`)
+    console.log(`\x1b[32m• \x1b[0mBuilt pages in \x1b[33m${Date.now() - start}ms\x1b[0m`);
 
   }
-
 
   let fsWatcher: FSWatcher;
 
@@ -98,9 +101,6 @@ export async function getSquidContext() {
   const rebuild = () => Promise.allSettled(builder.map(builder => builder.rebuild()));
   const watch = () => builder.forEach(builder => builder.watch());
   const dispose = () => builder.forEach(builder => builder.dispose());
-
-  console.log('SQUIDDING');
-
 
   return {
     rebuild,

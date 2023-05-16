@@ -22,3 +22,6 @@ app.listen(port, () => {
   console.log(`✅ Express server listening on port ${port}`);
   ipcSocket.send('started', port - 1, 'localhost');
 });
+
+
+export {app};
