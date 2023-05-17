@@ -33,6 +33,11 @@ async function resolveRequestURLToModulePath(url: string) {
       queryParams[dynamicFragment.slice(1, -1)] = fragment;
       continue;
     }
+
+    return {
+      modulePath: '',
+      queryParams
+    }
   }
 
   if ((await getFragmentsFromPath(join('./build/pages', moduleFragments.join('/')))).includes('index'))
