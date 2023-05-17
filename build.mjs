@@ -2,7 +2,7 @@ import { context } from 'esbuild';
 
 const WATCH = process.argv.includes('--watch');
 
-const mainContext = await context({
+const cliContext = await context({
   entryPoints: ['./src/squid-cli.ts'],
   outfile: './dist/squid-cli.js',
   minify: !WATCH,
@@ -16,29 +16,10 @@ const mainContext = await context({
   logLevel: 'info'
 });
 
-await mainContext.rebuild();
+await cliContext.rebuild();
 
-if (WATCH)  mainContext.watch();
-else mainContext.dispose();
-
-const serverContext = await context({
-  entryPoints: ['./src/squid-server.ts'],
-  outfile: './dist/squid-server.mjs',
-  minify: !WATCH,
-  bundle: true,
-  format: 'esm',
-  platform: 'node',
-  define: WATCH ? undefined : {
-    'process.env.NODE_ENV': "'production'",
-  },
-  external: ['path', 'express'],
-  logLevel: 'info'
-});
-
-await serverContext.rebuild();
-
-if (WATCH)  serverContext.watch();
-else serverContext.dispose();
+if (WATCH)  cliContext.watch();
+else cliContext.dispose();
 
 const hydrate = await context({
   entryPoints: ['./src/modules/hydrate.ts'],

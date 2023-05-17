@@ -1,16 +1,17 @@
 import express from "express";
-import { basename, resolve, join } from "path";
-import { existsSync } from 'fs';
+import { join, resolve } from "path";
 import { pathToFileURL } from 'url';
-import { Response, Request } from "express-serve-static-core";
-import { readdir, readFile } from "fs/promises";
+import { readdir } from "fs/promises";
 import { JSX } from "preact";
 import { ApiHandler } from "./api";
+import { createSocket } from "dgram";
 
 async function getFragmentsFromPath(dir: string) {
-  return (await readdir(dir, { withFileTypes: true }))
-    // .filter(dirent => dirent.isDirectory())
-    .map(dirent => dirent.name.replace('.mjs', ''));
+  try {
+    return (await readdir(dir, { withFileTypes: true }))
+      // .filter(dirent => dirent.isDirectory())
+      .map(dirent => dirent.name.replace('.mjs', ''));
+  } catch (e) { return []; }
 }
 
 async function resolveRequestURLToModulePath(url: string) {
@@ -19,6 +20,7 @@ async function resolveRequestURLToModulePath(url: string) {
   const queryParams: { [key: string]: string; } = {};
 
   for (const fragment of pathFragments) {
+
     const possibleModuleFragments = await getFragmentsFromPath(join('./build/pages', moduleFragments.join('/')));
     if (possibleModuleFragments.includes(fragment)) {
       moduleFragments.push(fragment);
@@ -29,11 +31,15 @@ async function resolveRequestURLToModulePath(url: string) {
     if (dynamicFragment) {
       moduleFragments.push(dynamicFragment);
       queryParams[dynamicFragment.slice(1, -1)] = fragment;
+      continue;
     }
   }
 
+  if ((await getFragmentsFromPath(join('./build/pages', moduleFragments.join('/')))).includes('index'))
+    moduleFragments.push('index');
+
   return {
-    modulePath: './build/pages/' + (moduleFragments.join('/') || 'index') + '.mjs',
+    modulePath: './build/pages/' + moduleFragments.join('/') + '.mjs',
     queryParams
   };
 }
@@ -44,37 +50,24 @@ export default function () {
   // http://expressjs.com/en/advanced/best-practice-security.html#at-a-minimum-disable-x-powered-by-header
   app.disable("x-powered-by");
 
-  function isStaticRequest(path: string) {
-    const pathFragments = path.split('/');
-    return (/.*\..+/).test(pathFragments[pathFragments.length - 1]);
-  }
+  app.use(express.static('./build/public'));
+  app.use('/hydrate/*', async (req, res, next) => {
+    const { modulePath } = await resolveRequestURLToModulePath(req.originalUrl.replace('/hydrate', ''));
 
-  async function serveStatic(req: Request, res: Response) {
-    const staticPath = './build' + req.originalUrl;
-
-    if (!existsSync(staticPath)) {
-      res.status(404);
-      res.send('Static content not found: ' + resolve(staticPath));
+    if (!modulePath) {
+      next();
       return;
     }
 
-    res.contentType(basename(staticPath).replaceAll('.mjs', '.js'));
-    res.send(await readFile(staticPath));
-  }
+    res.sendFile(resolve(modulePath));
+    // console.log(modulePath, req.originalUrl);
+  });
 
-
-  app.get('/*', async (req, res) => {
-    if (isStaticRequest(req.originalUrl)) {
-      await serveStatic(req, res);
-      return;
-    }
-
-    // const appPath = (await glob(`build/pages/${req.originalUrl}{/index.mjs,.mjs}`))[0];
+  app.use('*', async (req, res, next) => {
     const { modulePath, queryParams } = await resolveRequestURLToModulePath(req.originalUrl);
 
-    if (!existsSync(modulePath)) {
-      res.status(404);
-      res.send('Page not found: ' + modulePath);
+    if (!modulePath) {
+      next();
       return;
     }
 
@@ -96,5 +89,25 @@ export default function () {
     module.default(Object.assign(req, { queryParams }), res);
 
   });
+
+  app.once('listening', (e) => {
+    console.log(e);
+    const port = 0;
+    const ipcSocket = createSocket("udp4");
+
+    // Catching the message event
+    ipcSocket.on("message", function (msg) {
+      app.emit('ipc', msg.toString('utf-8'));
+    });
+
+    app.on('ipc', (msg) => {
+      console.log(msg);
+    });
+
+    // Binding server with port
+    ipcSocket.bind(port + 1, 'localhost');
+    ipcSocket.send('started', port - 1, 'localhost');
+  });
+
   return app;
 };

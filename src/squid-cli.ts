@@ -62,7 +62,7 @@ program
 
     nodemon({
       scriptPosition: 0,
-      script: 'build/squid-server.mjs',
+      script: 'build/main.js',
       args: []
     });
   });
@@ -75,7 +75,7 @@ program
     const port = Number.parseInt(process.env.SQUID_PORT ?? '0') || 3000;
     //Process must NOT inherit stdio. This causes the gitlab CI/CD pipeline to get stuck (because why not?)
     //even after the CLI process terminates (prolly cause it waits for stdio to be free again?)
-    const serverProcess = spawn('node', [path.resolve(process.cwd(), 'build/squid-server.mjs')], {
+    const serverProcess = spawn('node', [path.resolve(process.cwd(), 'build/main.js')], {
       cwd: process.cwd(),
       detached: true
     });
@@ -114,9 +114,9 @@ program
     const installProcess = spawn(`${npm}`, ['init', 'squid-ssr'], {
       stdio: 'inherit'
     });
-  
+
     installProcess.addListener('exit', () => process.exit());
-  
-  })
+
+  });
 
 program.parse();

@@ -1,6 +1,6 @@
-import { build, BuildResult } from "esbuild";
+import { build, BuildResult, context } from "esbuild";
 import fs, { FSWatcher } from "fs";
-import { copyFile, readFile } from "fs/promises";
+import { cp, readFile } from "fs/promises";
 import { glob } from "glob";
 import path from "path";
 
@@ -53,11 +53,11 @@ export async function getComponentContext() {
     let timeout: NodeJS.Timeout | undefined;
     fsWatcher = fsWatcher ?? fs.watch('./src', { recursive: true });
     fsWatcher.addListener('change', async (ev, file) => {
-      if(timeout)return;
+      if (timeout) return;
       timeout = setTimeout(async () => {
         await buildPages();
         timeout = undefined;
-      },10)
+      }, 10);
     });
   };
 
@@ -75,9 +75,12 @@ export async function getComponentContext() {
 function FileBuilder(file: string, dest: string) {
   let fsWatcher: fs.FSWatcher;
 
-
   const rebuild = async () => {
-    await copyFile(file, path.resolve(process.cwd(), dest));
+    try {
+      await cp(path.resolve(file), path.resolve(process.cwd(), dest), { recursive: true });
+    } catch (e) {
+      console.log(e);
+    }
   };
 
   const watch = () => {
@@ -96,18 +99,38 @@ function FileBuilder(file: string, dest: string) {
   };
 }
 
+type Builder = {
+  rebuild: () => any,
+  watch: () => any,
+  dispose: () => any;
+};
+
 export async function getSquidContext() {
-  const serverScriptPath = './node_modules/squid-ssr/dist/squid-server.mjs';
+  const publicPath = './public/';
   const clientScriptPath = './node_modules/squid-ssr/dist/hydrate.js';
 
-  const builder = [
-    FileBuilder(serverScriptPath, './build/squid-server.mjs'),
-    FileBuilder(clientScriptPath, './build/hydrate.js')
+  const builders: Builder[] = [
+    // FileBuilder(serverScriptPath, './build/squid-server.mjs'),
+    await context({
+      bundle: true,
+      entryPoints: ['./src/main.ts'],
+      outfile: path.join('./build', 'main.js'),
+      format: 'cjs',
+      platform: 'node',
+      tsconfig: 'tsconfig.export.json',
+      external: ['express']
+    }),
+    FileBuilder(clientScriptPath, './build/public/hydrate.js'),
+    FileBuilder(publicPath, './build/public/'),
   ];
 
-  const rebuild = () => Promise.allSettled(builder.map(builder => builder.rebuild()));
-  const watch = () => builder.forEach(builder => builder.watch());
-  const dispose = () => builder.forEach(builder => builder.dispose());
+  const rebuild = async () => {
+    for (const builder of builders) {
+      await builder.rebuild();
+    }
+  };
+  const watch = () => builders.forEach(builder => builder.watch());
+  const dispose = () => builders.forEach(builder => builder.dispose());
 
   return {
     rebuild,
