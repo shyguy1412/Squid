@@ -4,6 +4,7 @@
   "description": "Preact SSR Framework",
   "main": "src/index.ts",
   "scripts": {
+    "prepare": "npm run build",
     "build": "node build.mjs",
     "dev": "node build.mjs --watch",
     "test": "echo \"Error: no test specified\" && exit 1"
