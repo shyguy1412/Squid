@@ -44,7 +44,7 @@ async function getContext() {
 
 program
   .command('build')
-  .description('Build Project for production')
+  .description('Build project for production')
   .action(async () => {
     const { rebuild, dispose } = await getContext();
 
@@ -55,7 +55,7 @@ program
 
 program
   .command('dev')
-  .description('Starts Squid server and rebuilds development build of the Project on file changes')
+  .description('Starts Squid server and rebuilds development build of the project on file changes')
   .action(async () => {
 
     const { rebuild, watch } = await getContext();
