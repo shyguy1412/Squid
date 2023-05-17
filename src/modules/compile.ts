@@ -50,7 +50,6 @@ export async function getComponentContext() {
   //TODO: Maybe only compile the changed and related files?
   //To much of a pain to implement rn tho since full compile times are usually under 500ms ¯\_(ツ)_/¯
   const watch = () => {
-    console.log('WATCH CALLED');
     let timeout: NodeJS.Timeout | undefined;
     fsWatcher = fsWatcher ?? fs.watch('./src/pages', { recursive: true });
     fsWatcher.addListener('change', async (ev, file) => {
@@ -98,8 +97,8 @@ function FileBuilder(file: string, dest: string) {
 }
 
 export async function getSquidContext() {
-  const serverScriptPath = './node_modules/squid/dist/squid-server.mjs';
-  const clientScriptPath = './node_modules/squid/dist/hydrate.js';
+  const serverScriptPath = './node_modules/squid-ssr/dist/squid-server.mjs';
+  const clientScriptPath = './node_modules/squid-ssr/dist/hydrate.js';
 
   const builder = [
     FileBuilder(serverScriptPath, './build/squid-server.mjs'),
