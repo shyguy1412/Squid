@@ -8,11 +8,8 @@ import { rm } from "fs/promises";
 import nodemon from "nodemon";
 import path from "path";
 import { getComponentContext, getSquidContext } from "./modules/compile";
-// import { server } from "./modules/server";
 
-import type * as Types from "./types";
-export { Types };
-
+const npm = process.platform == 'win32' ? 'npm.cmd' : 'npm';
 async function getContext() {
   if (existsSync('./build'))
     await rm('./build', { recursive: true });
@@ -109,5 +106,17 @@ program
       process.exit();
     });
   });
+
+program
+  .command('init')
+  .description('Initialise a new project')
+  .action(() => {
+    const installProcess = spawn(`${npm}`, ['init', 'squid-ssr'], {
+      stdio: 'inherit'
+    });
+  
+    installProcess.addListener('exit', () => process.exit());
+  
+  })
 
 program.parse();
