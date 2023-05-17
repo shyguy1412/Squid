@@ -18,7 +18,7 @@ export async function getComponentContext() {
       const isComponent = file.includes('.tsx');
       const fileName = path.basename(file.replace(/\.ts[x]?/, '.mjs'));
       const destinationPath = file.replace(path.basename(file), '').replace('src', 'build');
-      
+
       promises.push(build({
         bundle: true,
         outfile: path.join(destinationPath, fileName),
@@ -47,10 +47,18 @@ export async function getComponentContext() {
     await buildPages();
   };
 
+  //TODO: Maybe only compile the changed and related files?
+  //To much of a pain to implement rn tho since full compile times are usually under 500ms ¯\_(ツ)_/¯
   const watch = () => {
+    console.log('WATCH CALLED');
+    let timeout: NodeJS.Timeout | undefined;
     fsWatcher = fsWatcher ?? fs.watch('./src/pages', { recursive: true });
     fsWatcher.addListener('change', async (ev, file) => {
-      await buildPages();
+      if(timeout)return;
+      timeout = setTimeout(async () => {
+        await buildPages();
+        timeout = undefined;
+      },10)
     });
   };
 
