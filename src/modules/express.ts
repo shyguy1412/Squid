@@ -33,7 +33,7 @@ async function resolveRequestURLToModulePath(url: string) {
   }
 
   return {
-    modulePath: './build/pages/' + moduleFragments.join('/') + '.mjs',
+    modulePath: './build/pages/' + (moduleFragments.join('/') || 'index') + '.mjs',
     queryParams
   };
 }
