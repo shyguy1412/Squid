@@ -51,7 +51,7 @@ export async function getComponentContext() {
   //To much of a pain to implement rn tho since full compile times are usually under 500ms ¯\_(ツ)_/¯
   const watch = () => {
     let timeout: NodeJS.Timeout | undefined;
-    fsWatcher = fsWatcher ?? fs.watch('./src/pages', { recursive: true });
+    fsWatcher = fsWatcher ?? fs.watch('./src', { recursive: true });
     fsWatcher.addListener('change', async (ev, file) => {
       if(timeout)return;
       timeout = setTimeout(async () => {
