@@ -23,7 +23,7 @@ export async function getComponentContext() {
         bundle: true,
         outfile: path.join(destinationPath, fileName),
         format: 'esm',
-        platform: 'browser',
+        platform: isComponent?'browser':'node',
         tsconfig: 'tsconfig.export.json',
         jsxFactory: 'h',
         jsxFragment: 'Fragment',
