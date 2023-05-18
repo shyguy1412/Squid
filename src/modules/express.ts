@@ -6,6 +6,12 @@ import { join, resolve } from "path";
 import { pathToFileURL } from 'url';
 import { readdir } from "fs/promises";
 
+type ServerSideProps = {
+  props: {
+    [key: string]: string;
+  };
+};
+
 async function getFragmentsFromPath(dir: string) {
   try {
     return (await readdir(dir, { withFileTypes: true }))
@@ -77,7 +83,7 @@ async function page(req: Request, res: Response, next: NextFunction) {
       default: () => JSX.Element,
       h: typeof import('preact').h,
       render: typeof import('preact-render-to-string').render,
-      getServerSideProps?: () => { props: { [key: string]: string; }; },
+      getServerSideProps?: () => ServerSideProps | Promise<ServerSideProps>,
     } | {
       default: (req: Request, res: Response) => void | Promise<void>,
     };
@@ -85,7 +91,7 @@ async function page(req: Request, res: Response, next: NextFunction) {
 
   if ('h' in module && 'render' in module) {
     const { render, h, default: App, getServerSideProps } = module;
-    const serverSideProps = getServerSideProps ? getServerSideProps() : null;
+    const serverSideProps = getServerSideProps ? await getServerSideProps() : null;
     const props = serverSideProps ? serverSideProps.props : {};
     const renderedHTML = render(h(App, props))
       .replace('<head>', `<head>
