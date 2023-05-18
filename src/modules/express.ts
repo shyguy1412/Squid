@@ -25,10 +25,14 @@ async function resolveRequestURLToModulePath(url: string) {
       continue;
     }
 
-    const dynamicFragment = possibleModuleFragments.filter(string => /\{.*\}/.test(string))[0];
+    const dynamicFragment = possibleModuleFragments.filter(string => /.*\{.*\}.*/.test(string))[0];
     if (dynamicFragment) {
+      const paramRegex = new RegExp(dynamicFragment.replace(/{.*?}/, '(.*)'));
+      const paramKey = dynamicFragment.replace(/.*{(.*?)}.*/, '$1');
+      const param = fragment.replace(paramRegex, '$1');
+
       moduleFragments.push(dynamicFragment);
-      queryParams[dynamicFragment.slice(1, -1)] = fragment;
+      queryParams[paramKey] = param;
       continue;
     }
 
@@ -57,7 +61,6 @@ async function hydrate(req: Request, res: Response, next: NextFunction) {
 
   if (!modulePath) return next();
   res.sendFile(resolve(modulePath));
-  console.log('HYDRATED', req.originalUrl);
 
 };
 
@@ -69,7 +72,6 @@ async function page(req: Request, res: Response, next: NextFunction) {
 
   if (!modulePath) return next();
 
-  console.log('MODULE', { modulePath, url: req.originalUrl });
   const module = await import(pathToFileURL(modulePath).toString()) as
     {
       default: () => JSX.Element,
