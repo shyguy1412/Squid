@@ -76,16 +76,23 @@ async function page(req: Request, res: Response, next: NextFunction) {
     {
       default: () => JSX.Element,
       h: typeof import('preact').h,
-      render: typeof import('preact-render-to-string').render;
+      render: typeof import('preact-render-to-string').render,
+      getServerSideProps?: () => { props: { [key: string]: string; }; },
     } | {
-      default: (req: Request, res: Response) => void | Promise<void>;
+      default: (req: Request, res: Response) => void | Promise<void>,
     };
 
 
   if ('h' in module && 'render' in module) {
-    const { render, h, default: App } = module;
-    const renderedHTML = render(h(App, {}))
-      .replace('<head>', '<head><script src="/hydrate.js" defer></script>');
+    const { render, h, default: App, getServerSideProps } = module;
+    const serverSideProps = getServerSideProps ? getServerSideProps() : null;
+    const props = serverSideProps ? serverSideProps.props : {};
+    const renderedHTML = render(h(App, props))
+      .replace('<head>', `<head>
+      <script>
+        window['squid-ssr-props'] = JSON.parse('${JSON.stringify(props)}');
+      </script>
+      <script src="/hydrate.js" defer></script>`);
 
     res.send(renderedHTML);
     return;
