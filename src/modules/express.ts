@@ -19,7 +19,7 @@ async function resolveRequestURLToModulePath(url: string) {
   const moduleFragments: string[] = [];
   const queryParams: { [key: string]: string; } = {};
 
-  for (const fragment of pathFragments) {
+  for (const [index, fragment] of pathFragments.entries()) {
 
     const possibleModuleFragments = await getFragmentsFromPath(join('./build/pages', moduleFragments.join('/')));
     if (possibleModuleFragments.includes(fragment)) {
@@ -34,10 +34,12 @@ async function resolveRequestURLToModulePath(url: string) {
       continue;
     }
 
+    if (index == 0) break;
+
     return {
       modulePath: '',
       queryParams
-    }
+    };
   }
 
   if ((await getFragmentsFromPath(join('./build/pages', moduleFragments.join('/')))).includes('index'))
@@ -65,7 +67,7 @@ export default function () {
     }
 
     res.sendFile(resolve(modulePath));
-    // console.log(modulePath, req.originalUrl);
+
   });
 
   app.use('*', async (req, res, next) => {
