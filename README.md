@@ -9,5 +9,3 @@ Squid is a very basic and lightweight Preact SSR framework
 ## Initialise a project
 
 `npm init squid-ssr`  
-or  
-`squid init`
