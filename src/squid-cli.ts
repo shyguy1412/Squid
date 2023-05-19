@@ -9,7 +9,9 @@ import nodemon from "nodemon";
 import path from "path";
 import { getComponentContext, getSquidContext } from "./modules/compile";
 
+const IPC_PORT = 7150;
 const npm = process.platform == 'win32' ? 'npm.cmd' : 'npm';
+
 async function getContext() {
   if (existsSync('./build'))
     await rm('./build', { recursive: true });
@@ -71,8 +73,11 @@ program
   .command('start')
   .description('Starts the Squid server')
   .action(() => {
-    const ipcSocket = createSocket('udp4');
-    const port = Number.parseInt(process.env.SQUID_PORT ?? '0') || 3000;
+    const ipcSocket = createSocket({ type: 'udp4', reuseAddr: true });
+    ipcSocket.bind(IPC_PORT, 'localhost');
+
+    ipcSocket.on('message', (msg) => msg.toString('utf8') == 'started' ? process.exit() : '');
+
     //Process must NOT inherit stdio. This causes the gitlab CI/CD pipeline to get stuck (because why not?)
     //even after the CLI process terminates (prolly cause it waits for stdio to be free again?)
     const serverProcess = spawn('node', [path.resolve(process.cwd(), 'build/main.js')], {
@@ -81,13 +86,6 @@ program
     });
 
     serverProcess.on('exit', () => process.exit());
-
-    ipcSocket.on("message", (msg) => {
-      if (msg.toString('utf-8') == 'started')
-        process.exit();
-    });
-
-    ipcSocket.bind(port - 1, 'localhost');
 
     //We still gotta get the console output tho
     serverProcess.stdout.on('data', data => process.stdout.write(data));
@@ -99,24 +97,11 @@ program
   .command('stop')
   .description('Stops the Squid server')
   .action(() => {
-    const ipcSocket = createSocket('udp4');
-    const port = Number.parseInt(process.env.EXPRESS_PORT ?? '0') || 3000;
-    ipcSocket.send('exit', port + 1, 'localhost', (err) => {
+    const ipcSocket = createSocket({ type: 'udp4', reuseAddr: true });
+    ipcSocket.send('exit', IPC_PORT, 'localhost', (err) => {
       console.log(err ?? 'Stopped');
       process.exit();
     });
-  });
-
-program
-  .command('init')
-  .description('Initialise a new project')
-  .action(() => {
-    const installProcess = spawn(`${npm}`, ['init', 'squid-ssr'], {
-      stdio: 'inherit'
-    });
-
-    installProcess.addListener('exit', () => process.exit());
-
   });
 
 program.parse();

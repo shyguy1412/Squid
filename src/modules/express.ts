@@ -5,6 +5,7 @@ import express from "express";
 import { join, resolve } from "path";
 import { pathToFileURL } from 'url';
 import { readdir } from "fs/promises";
+import { createSocket } from "dgram";
 
 type ServerSideProps = {
   props: {
@@ -109,6 +110,17 @@ async function page(req: Request, res: Response, next: NextFunction) {
 }
 
 export default function () {
+  const ipcSocket = createSocket({ type: 'udp4', reuseAddr: true });
+  const IPC_PORT = 7150;
+  ipcSocket.bind(IPC_PORT, 'localhost');
+
+  ipcSocket.on("message", (msg) => {
+    if (msg.toString('utf8') == 'exit')
+      process.exit();
+  });
+
+  ipcSocket.send('started', IPC_PORT, 'localhost');
+
   return [
     express.static('./build/public'),
     hydrate,
