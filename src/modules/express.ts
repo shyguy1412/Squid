@@ -79,12 +79,15 @@ async function page(req: Request, res: Response, next: NextFunction) {
 
   if (!modulePath) return next();
 
+
+  req.params = queryParams;
+
   const module = await import(pathToFileURL(modulePath).toString()) as
     {
       default: () => JSX.Element,
       h: typeof import('preact').h,
       render: typeof import('preact-render-to-string').render,
-      getServerSideProps?: () => ServerSideProps | Promise<ServerSideProps>,
+      getServerSideProps?: (req: Request, res: Response) => ServerSideProps | Promise<ServerSideProps>,
     } | {
       default: (req: Request, res: Response) => void | Promise<void>,
     };
@@ -92,7 +95,7 @@ async function page(req: Request, res: Response, next: NextFunction) {
 
   if ('h' in module && 'render' in module) {
     const { render, h, default: App, getServerSideProps } = module;
-    const serverSideProps = getServerSideProps ? await getServerSideProps() : null;
+    const serverSideProps = getServerSideProps ? await getServerSideProps(req, res) : null;
     const props = serverSideProps ? serverSideProps.props : {};
     const renderedHTML = render(h(App, props))
       .replace('<head>', `<head>
@@ -105,7 +108,6 @@ async function page(req: Request, res: Response, next: NextFunction) {
     return;
   }
 
-  req.params = queryParams;
   module.default(req, res);
 }
 
