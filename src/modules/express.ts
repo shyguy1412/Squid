@@ -73,7 +73,6 @@ async function hydrate(req: Request, res: Response, next: NextFunction) {
 
 //PAGE MIDDLEWARE
 async function page(req: Request, res: Response, next: NextFunction) {
-  if (req.method.toLowerCase() != 'get') return next();
 
   const { modulePath, queryParams } = await resolveRequestURLToModulePath(req.originalUrl);
 
