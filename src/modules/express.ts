@@ -37,7 +37,7 @@ async function resolveRequestURLToModulePath(url: string) {
       const paramRegex = new RegExp(dynamicFragment.replace(/{.*?}/, '(.*)'));
       const paramKey = dynamicFragment.replace(/.*{(.*?)}.*/, '$1');
       const param = fragment.replace(paramRegex, '$1');
-
+      if (!param) continue;
       moduleFragments.push(dynamicFragment);
       queryParams[paramKey] = param;
       continue;
@@ -78,7 +78,6 @@ async function page(req: Request, res: Response, next: NextFunction) {
 
   if (!modulePath) return next();
 
-
   req.params = queryParams;
 
   const module = await import(pathToFileURL(modulePath).toString()) as
@@ -93,6 +92,7 @@ async function page(req: Request, res: Response, next: NextFunction) {
 
 
   if ('h' in module && 'render' in module) {
+    if (req.method.toLowerCase() != 'get') return next();
     const { render, h, default: App, getServerSideProps } = module;
     const serverSideProps = getServerSideProps ? await getServerSideProps(req, res) : null;
     const props = serverSideProps ? serverSideProps.props : {};
