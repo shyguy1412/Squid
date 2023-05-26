@@ -3,9 +3,12 @@ import type { NextFunction, Request, Response } from 'express';
 
 import express from "express";
 import { join, resolve } from "path";
-import { pathToFileURL } from 'url';
+import { pathToFileURL, parse } from 'url';
 import { readdir } from "fs/promises";
 import { createSocket } from "dgram";
+import { log } from "console";
+
+const PAGES_DIR = './build/pages/';
 
 type ServerSideProps = {
   props: {
@@ -20,13 +23,13 @@ async function getFragmentsFromPath(dir: string) {
   } catch (e) { return []; }
 }
 
-async function resolveRequestURLToModulePath(url: string) {
+async function resolveRequestPathToModulePath(url: string, basedir:string) {
   const pathFragments = url.substring(1).split('/');
   const moduleFragments: string[] = [];
   const queryParams: { [key: string]: string; } = {};
 
   for (const [index, fragment] of pathFragments.entries()) {
-    const possibleModuleFragments = await getFragmentsFromPath(join('./build/pages', moduleFragments.join('/')));
+    const possibleModuleFragments = await getFragmentsFromPath(resolve(basedir, moduleFragments.join('/')));
     if (possibleModuleFragments.includes(fragment)) {
       moduleFragments.push(fragment);
       continue;
@@ -51,11 +54,14 @@ async function resolveRequestURLToModulePath(url: string) {
     };
   }
 
-  if ((await getFragmentsFromPath(join('./build/pages', moduleFragments.join('/')))).includes('index'))
+  
+
+  if ((await getFragmentsFromPath(resolve(basedir, moduleFragments.join('/')))).includes('index'))
     moduleFragments.push('index');
 
   return {
-    modulePath: './build/pages/' + moduleFragments.join('/') + '.mjs',
+
+    modulePath: resolve(basedir, moduleFragments.join('/') + '.mjs'),
     queryParams
   };
 }
@@ -64,7 +70,9 @@ async function resolveRequestURLToModulePath(url: string) {
 async function hydrate(req: Request, res: Response, next: NextFunction) {
   if (!/\/?hydrate\/.*/.test(req.originalUrl)) return next();
 
-  const { modulePath } = await resolveRequestURLToModulePath(req.originalUrl.replace('/hydrate', ''));
+  const requestPath = parse(req.originalUrl).path ?? '';
+
+  const { modulePath } = await resolveRequestPathToModulePath(requestPath.replace('/hydrate', ''), PAGES_DIR);
 
   if (!modulePath) return next();
   res.sendFile(resolve(modulePath));
@@ -74,11 +82,13 @@ async function hydrate(req: Request, res: Response, next: NextFunction) {
 //PAGE MIDDLEWARE
 async function page(req: Request, res: Response, next: NextFunction) {
 
-  const { modulePath, queryParams } = await resolveRequestURLToModulePath(req.originalUrl);
+  const requestPath = parse(req.originalUrl).path ?? '';
+
+  const { modulePath, queryParams } = await resolveRequestPathToModulePath(requestPath, PAGES_DIR);
 
   if (!modulePath) return next();
 
-  req.params = queryParams;
+  Object.assign(req.params, queryParams);
 
   const module = await import(pathToFileURL(modulePath).toString()) as
     {
@@ -93,9 +103,12 @@ async function page(req: Request, res: Response, next: NextFunction) {
 
   if ('h' in module && 'render' in module) {
     if (req.method.toLowerCase() != 'get') return next();
+
     const { render, h, default: App, getServerSideProps } = module;
+
     const serverSideProps = getServerSideProps ? await getServerSideProps(req, res) : null;
     const props = serverSideProps ? serverSideProps.props : {};
+
     const renderedHTML = render(h(App, props))
       .replace('<head>', `<head>
       <script>
