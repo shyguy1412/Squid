@@ -1,5 +1,6 @@
 import { build, BuildResult, context } from "esbuild";
-import fs, { FSWatcher } from "fs";
+// import fs, { FSWatcher } from "fs";
+import {watch as watchFile, FSWatcher} from 'chokidar';
 import { cp, readFile } from "fs/promises";
 import { glob } from "glob";
 import path from "path";
@@ -52,7 +53,7 @@ export async function getComponentContext() {
   //To much of a pain to implement rn tho since full compile times are usually under 500ms ¯\_(ツ)_/¯
   const watch = () => {
     let timeout: NodeJS.Timeout | undefined;
-    fsWatcher = fsWatcher ?? fs.watch('./src', { recursive: true });
+    fsWatcher = fsWatcher ?? watchFile('./src');
     fsWatcher.addListener('change', async (ev, file) => {
       if (timeout) return;
       timeout = setTimeout(async () => {
@@ -74,7 +75,7 @@ export async function getComponentContext() {
 }
 
 function FileBuilder(file: string, dest: string) {
-  let fsWatcher: fs.FSWatcher;
+  let fsWatcher: FSWatcher;
 
   const rebuild = async () => {
     try {
@@ -85,7 +86,7 @@ function FileBuilder(file: string, dest: string) {
   };
 
   const watch = () => {
-    fsWatcher = fsWatcher ?? fs.watch(file);
+    fsWatcher = fsWatcher ?? watchFile(file);
     fsWatcher.on('change', () => rebuild());
   };
 

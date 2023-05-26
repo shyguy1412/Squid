@@ -32,14 +32,15 @@
     "preact": "^10.13.2"
   },
   "dependencies": {
-    "preact-render-to-string": "^6.0.2",
+    "chokidar": "^3.5.3",
     "esbuild": "^0.17.17",
+    "glob": "^10.2.1",
     "nodemon": "^2.0.22",
-    "glob": "^10.2.1"
+    "preact-render-to-string": "^6.0.2"
   },
   "devDependencies": {
-    "@types/nodemon": "^1.19.2",
     "@types/node": "^18.15.13",
+    "@types/nodemon": "^1.19.2",
     "commander": "^10.0.1"
   }
 }
