@@ -2,11 +2,10 @@ import type { JSX } from "preact";
 import type { NextFunction, Request, Response } from 'express';
 
 import express from "express";
-import { join, resolve } from "path";
+import { resolve } from "path";
 import { pathToFileURL, parse } from 'url';
 import { readdir } from "fs/promises";
 import { createSocket } from "dgram";
-import { log } from "console";
 
 const PAGES_DIR = './build/pages/';
 
@@ -54,8 +53,6 @@ async function resolveRequestPathToModulePath(url: string, basedir:string) {
     };
   }
 
-  
-
   if ((await getFragmentsFromPath(resolve(basedir, moduleFragments.join('/')))).includes('index'))
     moduleFragments.push('index');
 
@@ -75,7 +72,7 @@ async function hydrate(req: Request, res: Response, next: NextFunction) {
   const { modulePath } = await resolveRequestPathToModulePath(requestPath.replace('/hydrate', ''), PAGES_DIR);
 
   if (!modulePath) return next();
-  res.sendFile(resolve(modulePath));
+  res.sendFile(modulePath);
 
 };
 
