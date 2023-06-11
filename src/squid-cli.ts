@@ -54,7 +54,7 @@ program
 
 program
   .command('dev')
-  .description('Starts Squid server and rebuilds development build of the project on file changes')
+  .description('Starts Squid server and rebuilds development build of the project on file changes (FOR DEVELOPMENT ONLY, use "build" for production builds))')
   .action(async () => {
 
     const { rebuild, watch } = await getContext();
@@ -71,7 +71,7 @@ program
 
 program
   .command('start')
-  .description('Starts the Squid server')
+  .description('Starts the Squid server (does not rebuild the project)')
   .action(() => {
     const ipcSocket = createSocket({ type: 'udp4', reuseAddr: true });
     ipcSocket.bind(IPC_PORT, 'localhost');
