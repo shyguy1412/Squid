@@ -15,6 +15,15 @@ type ServerSideProps = {
   };
 };
 
+type SquidModule = {
+  default: () => JSX.Element,
+  h: typeof import('preact').h,
+  render: typeof import('preact-render-to-string').render,
+  getServerSideProps?: (req: Request, res: Response) => ServerSideProps | Promise<ServerSideProps>,
+} | {
+  default: (req: Request, res: Response) => void | Promise<void>,
+};
+
 async function getFragmentsFromPath(dir: string) {
   try {
     return (await readdir(dir, { withFileTypes: true }))
@@ -22,7 +31,7 @@ async function getFragmentsFromPath(dir: string) {
   } catch (e) { return []; }
 }
 
-async function resolveRequestPathToModulePath(url: string, basedir:string) {
+async function resolveRequestPathToModulePath(url: string, basedir: string) {
   const pathFragments = url.substring(1).split('/');
   const moduleFragments: string[] = [];
   const queryParams: { [key: string]: string; } = {};
@@ -67,11 +76,11 @@ async function resolveRequestPathToModulePath(url: string, basedir:string) {
 async function hydrate(req: Request, res: Response, next: NextFunction) {
   if (!/\/?hydrate\/.*/.test(req.originalUrl)) return next();
 
-  const requestPath = parse(req.originalUrl).path ?? '';
-
-  const { modulePath } = await resolveRequestPathToModulePath(requestPath.replace('/hydrate', ''), PAGES_DIR);
+  const requestPath = (parse(req.originalUrl).path ?? '').replace('/hydrate', '');
+  const { modulePath } = await resolveRequestPathToModulePath(requestPath, PAGES_DIR);
 
   if (!modulePath) return next();
+
   res.sendFile(modulePath);
 
 };
@@ -80,22 +89,13 @@ async function hydrate(req: Request, res: Response, next: NextFunction) {
 async function page(req: Request, res: Response, next: NextFunction) {
 
   const requestPath = parse(req.originalUrl).path ?? '';
-
   const { modulePath, queryParams } = await resolveRequestPathToModulePath(requestPath, PAGES_DIR);
 
   if (!modulePath) return next();
 
   Object.assign(req.params, queryParams);
 
-  const module = await import(pathToFileURL(modulePath).toString()) as
-    {
-      default: () => JSX.Element,
-      h: typeof import('preact').h,
-      render: typeof import('preact-render-to-string').render,
-      getServerSideProps?: (req: Request, res: Response) => ServerSideProps | Promise<ServerSideProps>,
-    } | {
-      default: (req: Request, res: Response) => void | Promise<void>,
-    };
+  const module = await import(pathToFileURL(modulePath).toString()) as SquidModule;
 
 
   if ('h' in module && 'render' in module) {
@@ -103,7 +103,7 @@ async function page(req: Request, res: Response, next: NextFunction) {
 
     const { render, h, default: App, getServerSideProps } = module;
 
-    const serverSideProps = getServerSideProps ? await getServerSideProps(req, res) : null;
+    const serverSideProps = typeof getServerSideProps == 'function' ? await getServerSideProps(req, res) : null;
     const props = serverSideProps ? serverSideProps.props : {};
 
     const renderedHTML = render(h(App, props))
