@@ -1,142 +1,161 @@
-import { build, BuildResult, context } from "esbuild";
-// import fs, { FSWatcher } from "fs";
-import {watch as watchFile, FSWatcher} from 'chokidar';
-import { cp, readFile } from "fs/promises";
+import { context, build, Plugin } from "esbuild";
 import { glob } from "glob";
-import path from "path";
+import fs from "fs/promises";
+import { existsSync as fileExists } from 'fs';
+import path from 'path';
 
-
-export async function getComponentContext() {
-  async function buildPages() {
-    const componentSSRInjection =
-      '\nexport {h, hydrate} from \'preact\'\n'
-      + 'export {render} from \'preact-render-to-string\'\n';
-
-    const promises: Promise<BuildResult>[] = [];
-    const start = Date.now();
-    const files = await glob('./src/pages/**/*.{ts,tsx}');
-    for (const file of files) {
-      const isComponent = file.includes('.tsx');
-      const fileName = path.basename(file.replace(/\.ts[x]?/, '.mjs'));
-      const destinationPath = file.replace(path.basename(file), '').replace('src', 'build');
-
-      promises.push(build({
-        bundle: true,
-        outfile: path.join(destinationPath, fileName),
-        format: 'esm',
-        platform: isComponent ? 'browser' : 'node',
-        external: isComponent ? undefined : ['./node_modules/*'],
-        tsconfig: 'tsconfig.export.json',
-        jsxFactory: 'h',
-        jsxFragment: 'Fragment',
-        stdin: {
-          loader: 'tsx',
-          resolveDir: path.resolve('.'),
-          contents: (await readFile(file)).toString('utf8')
-            + (isComponent ? componentSSRInjection : ''),
-        }
-      }));
-      console.log(`\t- ${path.join(destinationPath, fileName)}`);
-    }
-    await Promise.all(promises);
-    console.log(`\x1b[32m• \x1b[0mBuilt pages in \x1b[33m${Date.now() - start}ms\x1b[0m`);
-
-  }
-
-  let fsWatcher: FSWatcher;
-
-  const rebuild = async () => {
-    await buildPages();
-  };
-
-  //TODO: Maybe only compile the changed and related files?
-  //To much of a pain to implement rn tho since full compile times are usually under 500ms ¯\_(ツ)_/¯
-  const watch = () => {
-    let timeout: NodeJS.Timeout | undefined;
-    fsWatcher = fsWatcher ?? watchFile('./src');
-    fsWatcher.addListener('change', async (ev, file) => {
-      if (timeout) return;
-      timeout = setTimeout(async () => {
-        await buildPages();
-        timeout = undefined;
-      }, 10);
+/**
+ * Exports the functions neccissary for server side rendering and hydration from a page
+ */
+const ExportRenderPlugin: Plugin = {
+  name: 'ExportRenderPlugin',
+  setup(pluginBuild) {
+    pluginBuild.onLoad({ filter: /pages/ }, async (opts) => {
+      const contents = (await fs.readFile(opts.path))
+        + '\nexport {h, hydrate} from \'preact\';'
+        + '\nexport {render} from \'preact-render-to-string\';';
+      return {
+        contents,
+        loader: 'tsx'
+      };
     });
-  };
-
-  const dispose = () => {
-    if (fsWatcher) fsWatcher.close();
-  };
-
-  return {
-    rebuild,
-    watch,
-    dispose
-  };
-}
-
-function FileBuilder(file: string, dest: string) {
-  let fsWatcher: FSWatcher;
-
-  const rebuild = async () => {
-    try {
-      await cp(path.resolve(file), path.resolve(process.cwd(), dest), { recursive: true });
-    } catch (e) {
-      console.log(e);
-    }
-  };
-
-  const watch = () => {
-    fsWatcher = fsWatcher ?? watchFile(file);
-    fsWatcher.on('change', () => rebuild());
-  };
-
-  const dispose = () => {
-    if (fsWatcher) fsWatcher.close();
-  };
-
-  return {
-    rebuild,
-    watch,
-    dispose
-  };
-}
-
-type Builder = {
-  rebuild: () => any,
-  watch: () => any,
-  dispose: () => any;
+  }
 };
 
-export async function getSquidContext() {
-  const publicPath = './public/';
-  const clientScriptPath = './node_modules/squid-ssr/dist/hydrate.js';
+/**
+ * This plugin builds all the pages
+ * and then generates and object representing the folder structure
+ * to access them for server side rendering
+ */
+const SquidPlugin: Plugin = {
+  name: 'SquidPlugin',
+  setup(pluginBuild) {
+    pluginBuild.onLoad({ filter: /pages/, namespace: 'squid' }, async (options) => {
 
-  const builders: Builder[] = [
-    // FileBuilder(serverScriptPath, './build/squid-server.mjs'),
-    await context({
-      bundle: true,
-      entryPoints: ['./src/main.ts'],
-      outfile: path.join('./build', 'main.js'),
-      format: 'cjs',
-      platform: 'node',
-      tsconfig: 'tsconfig.export.json',
-      external: ['express']
-    }),
-    FileBuilder(clientScriptPath, './build/public/hydrate.js'),
-    FileBuilder(publicPath, './build/public/'),
-  ];
+      //this maps the output locations of all pages to a tuple containing the correct import path
+      //and a suitable unique name for the default import based on the path
+      // example: /home/user/project/build/pages/welcome/index.js ->
+      // ["welcome_index", "./welcome/index.js"]
+      const imports: [string, string][] = options.pluginData.pages
+        .map((file: string) => file.replace(/^build\//, ''))
+        .map((file: string) => (
+          [
+            file
+              .replaceAll('\\', '/') //convert windows to unix
+              .replaceAll(/(\/?)[{[(](.*?)[)}\]](\/?)/g, '$1$2$3') //remove parameter brackets
+              .replaceAll('/', '_')  //make path to snake case name
+              .replace(/\.m?js$/, ''), //remove file extension
+            file]));
 
-  const rebuild = async () => {
-    for (const builder of builders) {
-      await builder.rebuild();
-    }
-  };
-  const watch = () => builders.forEach(builder => builder.watch());
-  const dispose = () => builders.forEach(builder => builder.dispose());
+      console.log(imports);
 
-  return {
-    rebuild,
-    watch,
-    dispose
-  };
+      //TODO: refactor to recursive 
+      //ugly piece of code that generates a tree simulating the folder structure from the paths
+      const pagesMap = (() => {
+        const splitImports: [string, string[]][] = imports.map(([name, path]) => [name, path.replace(/^pages\//, '').replace(/\.[m]js$/, '').split('/')]);
+        const accumulator: any = {};
+        for (const [name, pathFragments] of splitImports) {
+          let walker = accumulator;
+          for (const fragment of pathFragments.slice(0, -1)) {
+            walker[fragment] ??= {};
+            walker = walker[fragment];
+          }
+          walker[pathFragments.at(-1)!] ??= name;
+        }
+        return accumulator;
+      })();
+
+      return {
+        contents: [
+          ...imports.map(([name, path]) => `import * as ${name} from './${path}';`),
+          `export default ${imports.reduce(
+            (prev, [name]) => prev.replace(`"${name}"`, name), JSON.stringify(pagesMap, null, 2))
+          };`
+        ].join('\n'),
+        resolveDir: './build',
+      };
+    });
+
+    pluginBuild.onResolve({ filter: /^\.\/pages/ }, async (options) => {
+      return { external: true }; // all pages are external
+    });
+
+
+    pluginBuild.onResolve({ filter: /squid\/pages/ }, async (options) => {
+      const { metafile: { outputs: pageOutputs } } = await build({
+        bundle: true,
+        entryPoints: await glob('./src/pages/**/*.tsx'),
+        plugins: [ExportRenderPlugin],
+        outbase: './src/pages',
+        outdir: './build/pages/',
+        outExtension: { '.js': '.mjs' },
+        format: 'esm',
+        splitting: true,
+        platform: 'browser',
+        tsconfig: 'tsconfig.json',
+        jsxFactory: 'h',
+        jsxFragment: 'Fragment',
+        logLevel: 'info',
+        metafile: true
+      });
+
+      const { metafile: { outputs: apiOutputs } } = await build({
+        entryPoints: await glob('./src/pages/**/*.ts'),
+        outExtension: { '.js': '.mjs' },
+        outbase: './src/pages',
+        outdir: './build/pages',
+        format: 'esm',
+        platform: 'node',
+        tsconfig: 'tsconfig.json',
+        logLevel: 'info',
+        metafile: true
+      });
+
+      const pages = [...Object.keys(pageOutputs), ...Object.keys(apiOutputs)]
+        .filter(path => !/.*\/chunk-[A-Z0-9]{8}.m?js$/.test(path));
+
+      return {
+        path: 'pages',
+        namespace: 'squid',
+        pluginData: { pages },
+
+      };
+    });
+
+    //after build copy public folder
+    pluginBuild.onEnd(async () => {
+      if (!fileExists('./public')) {
+        try {
+          await fs.mkdir('./build/public');
+        } catch (_) { }
+      }
+      else {
+        await fs.cp('./public', './build/public', { recursive: true });
+      }
+      await fs.cp('./node_modules/squid-ssr/src/modules/hydrate.js', './build/public/hydrate.js');
+    });
+
+    // pluginBuild.onResolve({ filter: /.*/ }, async (opts) => {
+    //   const importPath = opts.resolveDir.replaceAll('\\', '/');
+    //   console.log(importPath);
+
+    //   return { external: false };
+    // });
+  }
+};
+
+export async function getContext() {
+  if (fileExists('./build'))
+    await fs.rm('./build', { recursive: true });
+  return await context({
+    bundle: true,
+    entryPoints: ['./src/main.ts'],
+    plugins: [SquidPlugin],
+    outfile: './build/main.mjs',
+    format: 'esm',
+    platform: 'node',
+    tsconfig: 'tsconfig.json',
+    external: ['express'],
+    metafile: true
+  });
 }
