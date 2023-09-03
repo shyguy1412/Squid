@@ -1,4 +1,4 @@
-async function hydrate() {
+(async () => {
   //preact doesnt like the doctype element
   //so we remove it during hydration and add it back after
   //a bit hacky but it works
@@ -10,6 +10,4 @@ async function hydrate() {
     ...(window['squid-ssr-props'] ?? {})
   }), document);
   document.prepend(doctype);
-}
-
-hydrate();
+})();
