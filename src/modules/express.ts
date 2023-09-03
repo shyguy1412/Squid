@@ -48,12 +48,14 @@ async function resolveRequestPathToModule(url: string) {
     }
     if ((position as typeof moduleMap)[node] == undefined) {
 
-      const dynamicKey = Object.keys(position).find(key => /^\{.*\}$/.test(key)) ?? node;
+      const dynamicKey = Object.keys(position).find(key => /^\{.*\}$/.test(key)) ?? false;
 
-      if (dynamicKey == node) return position as SquidModule;
+      if (!dynamicKey) {
+        return null;
+      };
 
       queryParams[dynamicKey.replace(/^\{(.*)\}$/, '$1')] = node;
-
+      moduleFragments.push(dynamicKey);
       return ((position as typeof moduleMap)[dynamicKey]) as SquidModule;
     }
 
