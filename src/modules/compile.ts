@@ -1,9 +1,23 @@
-import { context, build, Plugin } from "esbuild";
+import { context, build, Plugin, Metafile } from "esbuild";
 import { glob } from "glob";
 import { existsSync as fileExists } from 'fs';
 import fs from "fs/promises";
 
 type Tree = { [key: string]: Tree | string; };
+
+//https://stackoverflow.com/questions/15900485/correct-way-to-convert-size-in-bytes-to-kb-mb-gb-in-javascript
+//Answer by: l2aelba (https://stackoverflow.com/users/622813)
+function formatBytes(bytes: number, decimals = 2) {
+  if (!+bytes) return '0 Bytes';
+
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB'];
+
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+}
 
 /**
  * Generates a tree of paths with the names of the corresponding modules at the end
@@ -63,6 +77,33 @@ const ExportRenderPlugin: Plugin = {
 const SquidPlugin: Plugin = {
   name: 'SquidPlugin',
   setup(pluginBuild) {
+    //TIMING AND DATA COLLECTION
+    let startTime: number;
+    let metafiles: { api: Metafile | null, pages: Metafile | null; } = { api: null, pages: null };
+    pluginBuild.onStart(() => {
+      startTime = Date.now();
+    });
+
+    pluginBuild.onEnd(result => {
+      const formatOutputFiles = (output: Metafile['outputs']): string[] => {
+        const files = Object.keys(output);
+        return files.map(file => `  \x1b[33m•\x1b[0m ${file} \x1b[32m${formatBytes(output[file].bytes)}\x1b[0m`);
+      };
+
+      console.log();
+      console.log(formatOutputFiles(metafiles.pages!.outputs).join('\n'));
+      console.log(formatOutputFiles(metafiles.api!.outputs).join('\n'));
+      console.log(formatOutputFiles(result.metafile!.outputs).join('\n'));
+      console.log();
+      console.log(`Total size: \x1b[32m${formatBytes([
+        ...Object.values(metafiles.pages!.outputs).map(v => v.bytes),
+        ...Object.values(metafiles.api!.outputs).map(v => v.bytes),
+        ...Object.values(result.metafile!.outputs).map(v => v.bytes),
+      ].reduce((prev, cur) => prev + cur))}\x1b[0m`);
+      console.log(`⚡ \x1b[32mDone in \x1b[33m${Date.now() - startTime}ms\x1b[0m`);
+      console.log();
+    });
+
     pluginBuild.onLoad({ filter: /pages/, namespace: 'squid' }, async (options) => {
 
       //this maps the output locations of all pages to a tuple containing the correct import path
@@ -105,7 +146,7 @@ const SquidPlugin: Plugin = {
 
 
     pluginBuild.onResolve({ filter: /squid\/pages/ }, async (options) => {
-      const { metafile: { outputs: pageOutputs } } = await build({
+      const { metafile: pagesMetafile, metafile: { outputs: pageOutputs } } = await build({
         bundle: true,
         entryPoints: await glob('./src/pages/**/*.tsx'),
         plugins: [ExportRenderPlugin],
@@ -121,7 +162,9 @@ const SquidPlugin: Plugin = {
         metafile: true
       });
 
-      const { metafile: { outputs: apiOutputs } } = await build({
+      metafiles['pages'] = pagesMetafile;
+
+      const { metafile: apiMetafile, metafile: { outputs: apiOutputs } } = await build({
         entryPoints: await glob('./src/pages/**/*.ts'),
         outExtension: { '.js': '.mjs' },
         outbase: './src/pages',
@@ -132,14 +175,15 @@ const SquidPlugin: Plugin = {
         metafile: true
       });
 
-      const pages = [...Object.keys(pageOutputs), ...Object.keys(apiOutputs)]
-        .filter(path => !/.*\/chunk-[A-Z0-9]{8}.m?js$/.test(path));
+      metafiles['api'] = apiMetafile;
+
+      const combinedOutputs = [...Object.keys(pageOutputs), ...Object.keys(apiOutputs)];
+      const pages = combinedOutputs.filter(path => !/.*\/chunk-[A-Z0-9]{8}.m?js$/.test(path));
 
       return {
         path: 'pages',
         namespace: 'squid',
         pluginData: { pages },
-
       };
     });
 
