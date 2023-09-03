@@ -9,11 +9,12 @@
     "declaration": true,
     "sourceMap": true,
     "outDir": "./dist",
+    "emitDeclarationOnly": true,
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
     }
   },
-  "include": ["src/**/*.ts", "src/modules/server.tsx"],
+  "include": ["src/**/*.ts"],
   "exclude": ["src/squid-client.ts"]
 }

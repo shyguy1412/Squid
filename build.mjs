@@ -1,15 +1,29 @@
 import { context } from 'esbuild';
 import { rm } from 'fs/promises';
+import { existsSync as fileExists } from 'fs';
+import { exec } from 'child_process';
 
-await rm('./dist', { recursive: true });
+if (fileExists('./dist'))
+  await rm('./dist', { recursive: true });
 
 const WATCH = process.argv.includes('--watch');
 
-const cliContext = await context({
-  entryPoints: ['./src/squid-cli.ts'],
+const typePlugin = {
+  name: "TypePlugin",
+  setup(pluginBuild) {
+    pluginBuild.onEnd(() => {
+      exec('npx tsc');
+    });
+  }
+};
+
+const ctx = await context({
+  entryPoints: ['./src/squid-cli.ts', './src/hooks/index.ts'],
   bundle: true,
-  external: ['./node_modules/*'],
-  outfile: './dist/squid-cli.js',
+  plugins: [typePlugin],
+  packages: 'external',
+  outdir: './dist',
+  outbase: "./src",
   minify: !WATCH,
   format: 'esm',
   platform: 'node',
@@ -19,7 +33,7 @@ const cliContext = await context({
   logLevel: 'info'
 });
 
-await cliContext.rebuild();
+await ctx.rebuild();
 
-if (WATCH) cliContext.watch();
-else cliContext.dispose();
+if (WATCH) ctx.watch();
+else ctx.dispose();
