@@ -80,9 +80,9 @@ async function resolveRequestPathToModule(url: string) {
 
 //HYDRATE MIDDLEWARE
 async function hydrate(req: Request, res: Response, next: NextFunction) {
-  if (!/^\/?hydrate\/.*/.test(req.originalUrl)) return next();
+  if (!/\?hydrate$/.test(req.originalUrl)) return next();
 
-  const requestPath = (parse(req.originalUrl).path ?? '').replace('/hydrate', '');
+  const requestPath = (parse(req.originalUrl).pathname ?? '').replace('/hydrate', '');
   const { module, path } = await resolveRequestPathToModule(requestPath);
 
   if (!module) return next();

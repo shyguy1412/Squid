@@ -4,7 +4,7 @@
   //a bit hacky but it works
   const doctype = document.querySelector('html').previousSibling;
   doctype.remove();
-  const appPath = './hydrate' + window.location.pathname;
+  const appPath = window.location.pathname + "?hydrate";
   const { default: App, h, hydrate } = await import(appPath);
   hydrate(h(App, {
     ...(window['squid-ssr-props'] ?? {})
