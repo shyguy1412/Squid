@@ -4,25 +4,20 @@ import { spawn } from "child_process";
 import { program } from "commander";
 import nodemon from "nodemon";
 import path from "path";
+import fs from "fs/promises";
 import { getContext } from "./modules/compile";
 
-// async function getContext() {
-//   if (existsSync('./build'))
-//     try { await rm('./build', { recursive: true }); } catch (_) { };
-
-//   const context = await getBuildContext();
-
-
-//   const rebuild = () => Promise.allSettled(context.map(context => context.rebuild()));
-//   const watch = () => Promise.allSettled(context.map(context => context.watch()));
-//   const dispose = () => Promise.allSettled(context.map(context => context.dispose()));
-
-//   return {
-//     rebuild,
-//     watch,
-//     dispose
-//   };
-// }
+try {
+  const package_json = JSON.parse((await fs.readFile('./package.json')).toString());
+  if (package_json['name'])
+    console.log(`Running in "${package_json['name']}"`);
+} catch (e) {
+  if (typeof e === 'object' && 'message' in e!) {
+    console.error(e['message']);
+  }
+  console.log('Make sure to run squid in your project root!');
+  process.exit(1);
+}
 
 program
   .command('build')
