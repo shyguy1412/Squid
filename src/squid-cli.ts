@@ -5,6 +5,7 @@ import { program } from "commander";
 import nodemon from "nodemon";
 import path from "path";
 import fs from "fs/promises";
+import { existsSync as fileExists } from "fs";
 import { getContext } from "./modules/compile";
 
 try {
@@ -37,12 +38,18 @@ program
 
     const { rebuild, watch } = await getContext();
 
-    await rebuild();
+    // await rebuild();
     await watch();
+
+    //esbuild sadly doesnt have a way to wait for the first build
+    //so polling it is
+    while (!fileExists('./build/main.mjs')) {
+      await new Promise<void>(resolve => setTimeout(() => resolve(), 100));
+    }
 
     nodemon({
       scriptPosition: 0,
-      script: 'build/main.mjs',
+      script: './build/main.mjs',
       args: []
     });
   });
