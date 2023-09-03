@@ -1,6 +1,7 @@
 import { context, build, Plugin, Metafile } from "esbuild";
 import { glob } from "glob";
 import { existsSync as fileExists } from 'fs';
+import path from 'path';
 import fs from "fs/promises";
 
 type Tree = { [key: string]: Tree | string; };
@@ -17,6 +18,15 @@ function formatBytes(bytes: number, decimals = 2) {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
 
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+}
+
+async function getSubfoldersRecusive(p: string): Promise<string[]> {
+  const contents = await fs.readdir(p, { recursive: true, withFileTypes: true });
+  return [
+    p,
+    ...contents
+      .filter(f => f.isDirectory())
+      .map(f => './' + path.join(f.path, f.name).replaceAll('\\', '/'))];
 }
 
 /**
@@ -146,9 +156,10 @@ const SquidPlugin: Plugin = {
 
 
     pluginBuild.onResolve({ filter: /squid\/pages/ }, async (options) => {
+      const pagesEntryPoints = await glob('./src/pages/**/*.tsx');
       const { metafile: pagesMetafile, metafile: { outputs: pageOutputs } } = await build({
         bundle: true,
-        entryPoints: await glob('./src/pages/**/*.tsx'),
+        entryPoints: pagesEntryPoints,
         plugins: [ExportRenderPlugin],
         outbase: './src/pages',
         outdir: './build/pages/',
@@ -164,8 +175,9 @@ const SquidPlugin: Plugin = {
 
       metafiles['pages'] = pagesMetafile;
 
+      const apiEntryPoints = await glob('./src/pages/**/*.ts');
       const { metafile: apiMetafile, metafile: { outputs: apiOutputs } } = await build({
-        entryPoints: await glob('./src/pages/**/*.ts'),
+        entryPoints: apiEntryPoints,
         outExtension: { '.js': '.mjs' },
         outbase: './src/pages',
         outdir: './build/pages',
@@ -180,10 +192,14 @@ const SquidPlugin: Plugin = {
       const combinedOutputs = [...Object.keys(pageOutputs), ...Object.keys(apiOutputs)];
       const pages = combinedOutputs.filter(path => !/.*\/chunk-[A-Z0-9]{8}.m?js$/.test(path));
 
+      const watchDirs = await getSubfoldersRecusive('./src/pages');
+
       return {
         path: 'pages',
         namespace: 'squid',
         pluginData: { pages },
+        watchFiles: [...pagesEntryPoints, ...apiEntryPoints],
+        watchDirs
       };
     });
 
