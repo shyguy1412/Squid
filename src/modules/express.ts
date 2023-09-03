@@ -111,7 +111,7 @@ async function page(req: Request, res: Response, next: NextFunction) {
       const props = serverSideProps ? serverSideProps.props : {};
 
       const renderedHTML = '<!DOCTYPE html>\n' + render(h(App, props))
-        .replace('<head>', `<head><script>window['squid-ssr-props'] = JSON.parse('${JSON.stringify(props)}');</script><script src="/hydrate.js" defer></script>`);
+        .replace('<head>', `<head><script>window['squid-ssr-props'] = JSON.parse('${JSON.stringify(props).replaceAll('\\', '\\\\')}');</script><script src="/hydrate.js" defer></script>`);
 
       res.send(renderedHTML);
       return;
