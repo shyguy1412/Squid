@@ -1,11 +1,44 @@
 import { context, build, Plugin } from "esbuild";
 import { glob } from "glob";
-import fs from "fs/promises";
 import { existsSync as fileExists } from 'fs';
-import path from 'path';
+import fs from "fs/promises";
+
+type Tree = { [key: string]: Tree | string; };
 
 /**
- * Exports the functions neccissary for server side rendering and hydration from a page
+ * Generates a tree of paths with the names of the corresponding modules at the end
+ * this is used to map the path of an incoming request to the correct module
+ * 
+ * @param pathList A list of paths and a name for the node at the end of them
+ * @returns A tree that the folder structure of the paths
+ */
+function generateTree(pathList: [string, string[]][]): Tree {
+  function recursiveGeneration(tree: Tree, path: string[], name: string): Tree {
+    const node = path.shift();
+
+    if (!node) {
+      return tree;
+    }
+
+    if (path.length == 0) {
+      tree[node] = name;
+      return tree;
+    }
+
+    if (!tree[node]) {
+      tree[node] = {};
+    }
+
+    return recursiveGeneration((tree[node] as typeof tree), path, name);
+  }
+
+  const tree: Tree = {};
+  pathList.forEach(([n, p]) => recursiveGeneration(tree, [...p], n));
+  return tree;
+};
+
+/**
+ * Exports the functions necissary for server side rendering and hydration from a page
  */
 const ExportRenderPlugin: Plugin = {
   name: 'ExportRenderPlugin',
@@ -47,29 +80,19 @@ const SquidPlugin: Plugin = {
               .replace(/\.m?js$/, ''), //remove file extension
             file]));
 
-      console.log(imports);
+      const importPathFragments: [string, string[]][] = imports.map(([name, path]) => [name, path.replace(/^pages\//, '').replace(/\.[m]js$/, '').split('/')]);
 
-      //TODO: refactor to recursive 
-      //ugly piece of code that generates a tree simulating the folder structure from the paths
-      const pagesMap = (() => {
-        const splitImports: [string, string[]][] = imports.map(([name, path]) => [name, path.replace(/^pages\//, '').replace(/\.[m]js$/, '').split('/')]);
-        const accumulator: any = {};
-        for (const [name, pathFragments] of splitImports) {
-          let walker = accumulator;
-          for (const fragment of pathFragments.slice(0, -1)) {
-            walker[fragment] ??= {};
-            walker = walker[fragment];
-          }
-          walker[pathFragments.at(-1)!] ??= name;
-        }
-        return accumulator;
-      })();
+      const tree: Tree = generateTree(importPathFragments);
 
       return {
+        /**
+         * Generate the import statements for all loaded pages
+         * and export a map to find them by path
+         */
         contents: [
           ...imports.map(([name, path]) => `import * as ${name} from './${path}';`),
           `export default ${imports.reduce(
-            (prev, [name]) => prev.replace(`"${name}"`, name), JSON.stringify(pagesMap, null, 2))
+            (prev, [name]) => prev.replace(`"${name}"`, name), JSON.stringify(tree, null, 2))
           };`
         ].join('\n'),
         resolveDir: './build',
@@ -95,7 +118,6 @@ const SquidPlugin: Plugin = {
         tsconfig: 'tsconfig.json',
         jsxFactory: 'h',
         jsxFragment: 'Fragment',
-        logLevel: 'info',
         metafile: true
       });
 
@@ -107,7 +129,6 @@ const SquidPlugin: Plugin = {
         format: 'esm',
         platform: 'node',
         tsconfig: 'tsconfig.json',
-        logLevel: 'info',
         metafile: true
       });
 
@@ -135,6 +156,9 @@ const SquidPlugin: Plugin = {
       await fs.cp('./node_modules/squid-ssr/src/modules/hydrate.js', './build/public/hydrate.js');
     });
 
+    // ? Currently only express is external because it can not be bundled
+    // ? Users might import stuff in the API that can not be bundled aswell
+    // ? In the future, the hook below could mark all known troublemakers as external
     // pluginBuild.onResolve({ filter: /.*/ }, async (opts) => {
     //   const importPath = opts.resolveDir.replaceAll('\\', '/');
     //   console.log(importPath);
@@ -147,15 +171,22 @@ const SquidPlugin: Plugin = {
 export async function getContext() {
   if (fileExists('./build'))
     await fs.rm('./build', { recursive: true });
+
+  const config = JSON.parse((await fs.readFile('./squid.json')).toString());
+
+  console.log(config);
+
+
   return await context({
     bundle: true,
     entryPoints: ['./src/main.ts'],
+    preserveSymlinks: true,
     plugins: [SquidPlugin],
     outfile: './build/main.mjs',
     format: 'esm',
     platform: 'node',
     tsconfig: 'tsconfig.json',
-    external: ['express'],
+    external: ['express', ...config['buildOptions']?.['external'] ?? []],
     metafile: true
   });
 }
