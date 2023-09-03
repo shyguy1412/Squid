@@ -174,9 +174,6 @@ export async function getContext() {
 
   const config = JSON.parse((await fs.readFile('./squid.json')).toString());
 
-  console.log(config);
-
-
   return await context({
     bundle: true,
     entryPoints: ['./src/main.ts'],
