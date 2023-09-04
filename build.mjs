@@ -22,10 +22,11 @@ const ctx = await context({
   bundle: true,
   plugins: [typePlugin],
   packages: 'external',
+  // outExtension: {'.js': '.mjs'},
   outdir: './dist',
   outbase: "./src",
   minify: !WATCH,
-  format: 'esm',
+  format: 'cjs',
   platform: 'node',
   define: WATCH ? undefined : {
     'process.env.NODE_ENV': "'production'",
