@@ -194,13 +194,14 @@ const SquidPlugin: Plugin = {
         .filter(path => /\.m?js$/.test(path))
         .filter(path => !/.*\/chunk-[A-Z0-9]{8}.m?js$/.test(path));
 
-      const watchDirs = await getSubfoldersRecusive('./src/pages');
+      const watchDirs = await getSubfoldersRecusive('./src');
+      const watchFiles = [...Object.keys(apiMetafile.inputs), ...Object.keys(pagesMetafile.inputs)]
 
       return {
         path: 'pages',
         namespace: 'squid',
         pluginData: { pages },
-        watchFiles: [...pagesEntryPoints, ...apiEntryPoints],
+        watchFiles,
         watchDirs
       };
     });
