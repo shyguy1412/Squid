@@ -15,10 +15,18 @@ export function useCookies(req: Request, res: Response) {
     add(cookie: Cookie) {
       newCookies.push(cookie);
       res.setHeader('Set-Cookie', newCookies.map(c => createCookieHeader(c)));
+    },
+    remove(cookie: string) {
+      this.add({
+        key: cookie,
+        value: '',
+        expires: new Date(0)
+      });
     }
   } as {
     [key: string]: any,
     add(cookie: Cookie): void;
+    remove(cookie: string): void;
   };
 
 }
