@@ -190,7 +190,9 @@ const SquidPlugin: Plugin = {
       metafiles['api'] = apiMetafile;
 
       const combinedOutputs = [...Object.keys(pageOutputs), ...Object.keys(apiOutputs)];
-      const pages = combinedOutputs.filter(path => !/.*\/chunk-[A-Z0-9]{8}.m?js$/.test(path));
+      const pages = combinedOutputs
+        .filter(path => /\.m?js$/.test(path))
+        .filter(path => !/.*\/chunk-[A-Z0-9]{8}.m?js$/.test(path));
 
       const watchDirs = await getSubfoldersRecusive('./src/pages');
 

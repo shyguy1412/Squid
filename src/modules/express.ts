@@ -4,6 +4,7 @@ import type { FunctionComponent } from 'preact';
 import express from "express";
 import path from "path";
 import { parse } from 'url';
+import { existsSync as fileExists } from 'fs';
 
 //This import is handled by the Compiler
 //Its a tree structure that represents the paths to the modules
@@ -79,6 +80,23 @@ async function resolveRequestPathToModule(url: string) {
   };
 }
 
+//STYLE MIDDLEWARE
+async function style(req: Request, res: Response, next: NextFunction) {
+  if (!/\?style$/.test(req.originalUrl)) return next();
+
+  const requestPath = (parse(req.originalUrl).pathname ?? '').replace('/hydrate', '');
+  const { module, path } = await resolveRequestPathToModule(requestPath);
+
+  if (!module) return next();
+
+  const stylePath = path.replace(/\.m?js$/, '.css');
+
+  if (fileExists(stylePath))
+    return res.sendFile(stylePath);
+
+  return next();
+};
+
 //HYDRATE MIDDLEWARE
 async function hydrate(req: Request, res: Response, next: NextFunction) {
   if (!/\?hydrate$/.test(req.originalUrl)) return next();
@@ -111,8 +129,7 @@ async function page(req: Request, res: Response, next: NextFunction) {
       const serverSideProps = typeof getServerSideProps == 'function' ? await getServerSideProps(req, res) : null;
       const props = serverSideProps ? serverSideProps.props : {};
       const redirect = serverSideProps ? serverSideProps.redirect : undefined;
-      console.log(serverSideProps);
-      
+
       if (redirect) {
         return res.redirect(redirect);
       }
@@ -133,6 +150,7 @@ async function page(req: Request, res: Response, next: NextFunction) {
 export default function () {
   return [
     express.static('./build/public'),
+    style,
     hydrate,
     page,
     express.static('./build/pages'),
