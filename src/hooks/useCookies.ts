@@ -16,6 +16,9 @@ export function useCookies(req: Request, res: Response) {
       newCookies.push(cookie);
       res.setHeader('Set-Cookie', newCookies.map(c => createCookieHeader(c)));
     }
+  } as {
+    [key: string]: any,
+    add(cookie: Cookie): void;
   };
 
 }
