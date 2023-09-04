@@ -11,9 +11,10 @@ import { parse } from 'url';
 import moduleMap from "squid/pages";
 
 export type ServerSideProps = {
-  props: {
+  props?: {
     [key: string]: string;
   };
+  redirect?: string;
 };
 
 export type SquidModule = {
@@ -109,9 +110,14 @@ async function page(req: Request, res: Response, next: NextFunction) {
 
       const serverSideProps = typeof getServerSideProps == 'function' ? await getServerSideProps(req, res) : null;
       const props = serverSideProps ? serverSideProps.props : {};
-
+      const redirect = serverSideProps ? serverSideProps.redirect : undefined;
+      console.log(serverSideProps);
+      
+      if (redirect) {
+        return res.redirect(redirect);
+      }
       const renderedHTML = '<!DOCTYPE html>\n' + render(h(App, props))
-        .replace('<head>', `<head><script>window['squid-ssr-props'] = JSON.parse('${JSON.stringify(props).replaceAll('\\', '\\\\')}');</script><script src="/hydrate.js" defer></script>`);
+        .replace('<head>', `<head><script>window['squid-ssr-props'] = JSON.parse('${JSON.stringify(props ?? {}).replaceAll('\\', '\\\\')}');</script><script src="/hydrate.js" defer></script>`);
 
       res.send(renderedHTML);
       return;
