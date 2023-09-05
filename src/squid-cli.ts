@@ -27,9 +27,11 @@ import { getContext } from "./modules/compile";
     .action(async () => {
       const { rebuild, dispose } = await getContext();
 
-      await rebuild();
+      try {
+        await rebuild();
+      } catch (e) { }
+      
       await dispose();
-
     });
 
   program

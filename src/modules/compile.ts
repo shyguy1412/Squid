@@ -1,4 +1,4 @@
-import { context, build, Plugin, Metafile } from "esbuild";
+import { context, build, Plugin, Metafile, BuildFailure, PartialMessage } from "esbuild";
 import { glob } from "glob";
 import { existsSync as fileExists } from 'fs';
 import path from 'path';
@@ -94,7 +94,51 @@ const SquidPlugin: Plugin = {
       startTime = Date.now();
     });
 
+    //Listener for error message and information
     pluginBuild.onEnd(result => {
+      if (result.errors.length == 0) return;
+
+      const highlightText = (text: string, start: number, end: number) => {
+        const before = text.substring(0, start);
+        const toHighlight = text.substring(start, end);
+        const highlighted = `\x1b[92m${toHighlight}\x1b[0m`;
+        const after = text.substring(end);
+        return before + highlighted + after + `\n` +
+          //squiggles
+          before.replaceAll(/./g, ' ') +
+          `\x1b[92m${toHighlight.replaceAll(/./g, '~')}\x1b[0m`
+          ;
+      };
+
+      const formatMessage = (m: PartialMessage, error = true) => {
+        const message =
+          `${error ? '❌' : '⚠️'} \x1b[41m\x1b[97m[ERROR]\x1b[0m ` +
+          `${m.text}\n\n` +
+          `    ${m.location?.file ?? 'source'}:${m.location?.line ?? 'unknown'}:${m.location?.column ?? 'unknown'}:\n` +
+          `      ${m.location?.lineText ?
+            highlightText(
+              m.location.lineText,
+              m.location.column ?? 0,
+              (m.location.column ?? 0) + (m.location.length ?? 0)).replace('\n', '\n      ')
+            : ''}`;
+
+        return message;
+      };
+
+      result.errors.forEach(e => console.log(formatMessage(e)));
+      result.warnings.forEach(e => console.log(formatMessage(e)));
+
+      console.log(`${result.errors.length} ${result.errors.length == 1 ? 'error' : 'errors'}`);
+
+
+      // console.log(result.errors[0]);
+
+    });
+
+    //Listener for success message and build information
+    pluginBuild.onEnd(result => {
+      if (result.errors.length > 0) return;
+
       const formatOutputFiles = (output: Metafile['outputs']): string[] => {
         const files = Object.keys(output);
         return files.map(file => `  \x1b[33m•\x1b[0m ${file} \x1b[32m${formatBytes(output[file].bytes)}\x1b[0m`);
@@ -115,7 +159,6 @@ const SquidPlugin: Plugin = {
     });
 
     pluginBuild.onLoad({ filter: /pages/, namespace: 'squid' }, async (options) => {
-
       //this maps the output locations of all pages to a tuple containing the correct import path
       //and a suitable unique name for the default import based on the path
       // example: /home/user/project/build/pages/welcome/index.js ->
@@ -156,54 +199,69 @@ const SquidPlugin: Plugin = {
 
 
     pluginBuild.onResolve({ filter: /squid\/pages/ }, async (options) => {
-      const pagesEntryPoints = await glob('./src/pages/**/*.tsx');
-      const { metafile: pagesMetafile, metafile: { outputs: pageOutputs } } = await build({
-        bundle: true,
-        entryPoints: pagesEntryPoints,
-        plugins: [ExportRenderPlugin],
-        outbase: './src/pages',
-        outdir: './build/pages/',
-        outExtension: { '.js': '.mjs' },
-        format: 'esm',
-        splitting: true,
-        platform: 'browser',
-        tsconfig: 'tsconfig.json',
-        jsxFactory: 'h',
-        jsxFragment: 'Fragment',
-        metafile: true
-      });
+      try {
+        const pagesEntryPoints = await glob('./src/pages/**/*.tsx');
+        const { metafile: pagesMetafile } = await build({
+          bundle: true,
+          entryPoints: pagesEntryPoints,
+          plugins: [ExportRenderPlugin],
+          outbase: './src/pages',
+          outdir: './build/pages/',
+          outExtension: { '.js': '.mjs' },
+          format: 'esm',
+          splitting: true,
+          platform: 'browser',
+          tsconfig: 'tsconfig.json',
+          jsxFactory: 'h',
+          jsxFragment: 'Fragment',
+          logLevel: 'silent',
+          metafile: true
+        });
 
-      metafiles['pages'] = pagesMetafile;
+        metafiles['pages'] = pagesMetafile;
 
-      const apiEntryPoints = await glob('./src/pages/**/*.ts');
-      const { metafile: apiMetafile, metafile: { outputs: apiOutputs } } = await build({
-        entryPoints: apiEntryPoints,
-        outExtension: { '.js': '.mjs' },
-        outbase: './src/pages',
-        outdir: './build/pages',
-        format: 'esm',
-        platform: 'node',
-        tsconfig: 'tsconfig.json',
-        metafile: true
-      });
+        const apiEntryPoints = await glob('./src/pages/**/*.ts');
+        const { metafile: apiMetafile } = await build({
+          entryPoints: apiEntryPoints,
+          outExtension: { '.js': '.mjs' },
+          outbase: './src/pages',
+          outdir: './build/pages',
+          format: 'esm',
+          platform: 'node',
+          tsconfig: 'tsconfig.json',
+          logLevel: 'silent',
+          metafile: true
+        });
 
-      metafiles['api'] = apiMetafile;
+        console.log('AAAAA');
 
-      const combinedOutputs = [...Object.keys(pageOutputs), ...Object.keys(apiOutputs)];
-      const pages = combinedOutputs
-        .filter(path => /\.m?js$/.test(path))
-        .filter(path => !/.*\/chunk-[A-Z0-9]{8}.m?js$/.test(path));
 
-      const watchDirs = await getSubfoldersRecusive('./src');
-      const watchFiles = [...Object.keys(apiMetafile.inputs), ...Object.keys(pagesMetafile.inputs)]
+        metafiles['api'] = apiMetafile;
 
-      return {
-        path: 'pages',
-        namespace: 'squid',
-        pluginData: { pages },
-        watchFiles,
-        watchDirs
-      };
+        const combinedOutputs = [...Object.keys(pagesMetafile.outputs), ...Object.keys(apiMetafile.outputs)];
+        const pages = combinedOutputs
+          .filter(path => /\.m?js$/.test(path))
+          .filter(path => !/.*\/chunk-[A-Z0-9]{8}.m?js$/.test(path));
+
+        const watchDirs = await getSubfoldersRecusive('./src');
+        const watchFiles = [...Object.keys(apiMetafile.inputs), ...Object.keys(pagesMetafile.inputs)];
+
+        return {
+          path: 'pages',
+          namespace: 'squid',
+          pluginData: { pages },
+          watchFiles,
+          logLevel: 'silent',
+          watchDirs
+        };
+      } catch (_) {
+        const e = _ as BuildFailure;
+
+        return {
+          errors: [...e.errors],
+          warnings: [...e.warnings],
+        };
+      }
     });
 
     //after build copy public folder
@@ -247,6 +305,7 @@ export async function getContext() {
     platform: 'node',
     tsconfig: 'tsconfig.json',
     external: ['express', ...config['buildOptions']?.['external'] ?? []],
+    logLevel: 'silent',
     metafile: true
   });
 }
