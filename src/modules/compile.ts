@@ -199,8 +199,10 @@ const SquidPlugin: Plugin = {
 
 
     pluginBuild.onResolve({ filter: /squid\/pages/ }, async (options) => {
+      const pagesEntryPoints = await glob('./src/pages/**/*.tsx');
+      const apiEntryPoints = await glob('./src/pages/**/*.ts');
+      const watchDirs = await getSubfoldersRecusive('./src');
       try {
-        const pagesEntryPoints = await glob('./src/pages/**/*.tsx');
         const { metafile: pagesMetafile } = await build({
           bundle: true,
           entryPoints: pagesEntryPoints,
@@ -217,10 +219,8 @@ const SquidPlugin: Plugin = {
           logLevel: 'silent',
           metafile: true
         });
-
         metafiles['pages'] = pagesMetafile;
 
-        const apiEntryPoints = await glob('./src/pages/**/*.ts');
         const { metafile: apiMetafile } = await build({
           entryPoints: apiEntryPoints,
           outExtension: { '.js': '.mjs' },
@@ -232,10 +232,6 @@ const SquidPlugin: Plugin = {
           logLevel: 'silent',
           metafile: true
         });
-
-        console.log('AAAAA');
-
-
         metafiles['api'] = apiMetafile;
 
         const combinedOutputs = [...Object.keys(pagesMetafile.outputs), ...Object.keys(apiMetafile.outputs)];
@@ -243,7 +239,6 @@ const SquidPlugin: Plugin = {
           .filter(path => /\.m?js$/.test(path))
           .filter(path => !/.*\/chunk-[A-Z0-9]{8}.m?js$/.test(path));
 
-        const watchDirs = await getSubfoldersRecusive('./src');
         const watchFiles = [...Object.keys(apiMetafile.inputs), ...Object.keys(pagesMetafile.inputs)];
 
         return {
@@ -251,7 +246,6 @@ const SquidPlugin: Plugin = {
           namespace: 'squid',
           pluginData: { pages },
           watchFiles,
-          logLevel: 'silent',
           watchDirs
         };
       } catch (_) {
@@ -260,6 +254,8 @@ const SquidPlugin: Plugin = {
         return {
           errors: [...e.errors],
           warnings: [...e.warnings],
+          watchDirs,
+          watchFiles: [...pagesEntryPoints, ...apiEntryPoints]
         };
       }
     });
