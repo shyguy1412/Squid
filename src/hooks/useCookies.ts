@@ -1,3 +1,4 @@
+import { tryJSONParse } from "@/lib/utils";
 import { Request, Response } from "express";
 
 
@@ -30,15 +31,6 @@ export function useCookies(req: Request, res: Response) {
   };
 
 }
-
-function tryJSONParse(string: string): any {
-  try {
-    return JSON.parse(string);
-  } catch (_) {
-    return string;
-  }
-}
-
 interface Cookie {
   key: any,
   value: any,
