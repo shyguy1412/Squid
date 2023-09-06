@@ -1,0 +1,8 @@
+import { h } from "preact";
+
+type Props = {
+};
+
+export function %COMPONENT_NAME%({ }: Props) {
+  return <div></div>;
+}
