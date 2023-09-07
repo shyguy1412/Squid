@@ -80,208 +80,32 @@ const ExportRenderPlugin: Plugin = {
 };
 
 /**
- * This plugin builds all the pages
- * and then generates and object representing the folder structure
- * to access them for server side rendering
+ * 
  */
-const SquidPlugin: Plugin = {
-  name: 'SquidPlugin',
-  setup(pluginBuild) {
-    //TIMING AND DATA COLLECTION
-    let startTime: number;
-    let metafiles: { api: Metafile | null, pages: Metafile | null; } = { api: null, pages: null };
-    pluginBuild.onStart(() => {
-      startTime = Date.now();
-    });
 
-    //Listener for error message and information
-    pluginBuild.onEnd(result => {
-      if (result.errors.length == 0) return;
+const TSAliasPlugin: Plugin = {
+  name: "tsalias-plugin",
+  setup: async function (build) {
+    const tsconfig = JSON.parse((await fs.readFile(build.initialOptions.tsconfig ?? './tsconfig.json')).toString());
 
-      const highlightText = (text: string, start: number, end: number) => {
-        const before = text.substring(0, start);
-        const toHighlight = text.substring(start, end);
-        const highlighted = `\x1b[92m${toHighlight}\x1b[0m`;
-        const after = text.substring(end);
-        return before + highlighted + after + `\n` +
-          //squiggles
-          before.replaceAll(/./g, ' ') +
-          `\x1b[92m${toHighlight.replaceAll(/./g, '~')}\x1b[0m`
-          ;
-      };
+    const { compilerOptions: { paths: alias } } = tsconfig;
 
-      const formatMessage = (m: PartialMessage, error = true) => {
-        const message =
-          `${error ? '❌' : '⚠️'} \x1b[41m\x1b[97m[ERROR]\x1b[0m ` +
-          `${m.text}\n\n` +
-          `    ${m.location?.file ?? 'source'}:${m.location?.line ?? 'unknown'}:${m.location?.column ?? 'unknown'}:\n` +
-          `      ${m.location?.lineText ?
-            highlightText(
-              m.location.lineText,
-              m.location.column ?? 0,
-              (m.location.column ?? 0) + (m.location.length ?? 0)).replace('\n', '\n      ')
-            : ''}`;
+    build.onResolve({ filter: /.*/, namespace: 'file' }, (opts) => {
+      if (opts.kind == 'entry-point') return { external: false };
 
-        return message;
-      };
-
-      result.errors.forEach(e => console.log(formatMessage(e)));
-      result.warnings.forEach(e => console.log(formatMessage(e)));
-
-      console.log(`${result.errors.length} ${result.errors.length == 1 ? 'error' : 'errors'}`);
-
-
-      // console.log(result.errors[0]);
-
-    });
-
-    //Listener for success message and build information
-    pluginBuild.onEnd(result => {
-      if (result.errors.length > 0) return;
-
-      const formatOutputFiles = (output: Metafile['outputs']): string[] => {
-        const files = Object.keys(output);
-        return files.map(file => `  \x1b[33m•\x1b[0m ${file} \x1b[32m${formatBytes(output[file].bytes)}\x1b[0m`);
-      };
-
-      console.log();
-      console.log(formatOutputFiles(metafiles.pages!.outputs).join('\n'));
-      console.log(formatOutputFiles(metafiles.api!.outputs).join('\n'));
-      console.log(formatOutputFiles(result.metafile!.outputs).join('\n'));
-      console.log();
-      console.log(`Total size: \x1b[32m${formatBytes([
-        ...Object.values(metafiles.pages!.outputs).map(v => v.bytes),
-        ...Object.values(metafiles.api!.outputs).map(v => v.bytes),
-        ...Object.values(result.metafile!.outputs).map(v => v.bytes),
-      ].reduce((prev, cur) => prev + cur))}\x1b[0m`);
-      console.log(`⚡ \x1b[32mDone in \x1b[33m${Date.now() - startTime}ms\x1b[0m`);
-      console.log();
-    });
-
-    pluginBuild.onLoad({ filter: /pages/, namespace: 'squid' }, async (options) => {
-      //this maps the output locations of all pages to a tuple containing the correct import path
-      //and a suitable unique name for the default import based on the path
-      // example: /home/user/project/build/pages/welcome/index.js ->
-      // ["welcome_index", "./welcome/index.js"]
-      const imports: [string, string][] = options.pluginData.pages
-        .map((file: string) => file.replace(/^build\//, ''))
-        .map((file: string) => (
-          [
-            file
-              .replaceAll('\\', '/') //convert windows to unix
-              .replaceAll(/(\/?)[{[(](.*?)[)}\]](\/?)/g, '$1$2$3') //remove parameter brackets
-              .replaceAll('/', '_')  //make path to snake case name
-              .replace(/\.m?js$/, ''), //remove file extension
-            file]));
-
-      const importPathFragments: [string, string[]][] = imports.map(([name, path]) => [name, path.replace(/^pages\//, '').replace(/\.[m]js$/, '').split('/')]);
-
-      const tree: Tree = generateTree(importPathFragments);
+      for (const [key, value] of Object.entries(alias as { [key: string]: string[]; })) {
+          const aliasRegex = new RegExp(`^${key}.*`);
+          if (aliasRegex.test(opts.path)) {
+            return {
+              external: false,
+            };
+        }
+      }
 
       return {
-        /**
-         * Generate the import statements for all loaded pages
-         * and export a map to find them by path
-         */
-        contents: [
-          ...imports.map(([name, path]) => `import * as ${name} from './${path}';`),
-          `export default ${imports.reduce(
-            (prev, [name]) => prev.replace(`"${name}"`, name), JSON.stringify(tree, null, 2))
-          };`
-        ].join('\n'),
-        resolveDir: './build',
+        external: true
       };
     });
-
-    pluginBuild.onResolve({ filter: /^\.\/pages/ }, async (options) => {
-      return { external: true }; // all pages are external
-    });
-
-
-    pluginBuild.onResolve({ filter: /squid\/pages/ }, async (options) => {
-      const pagesEntryPoints = await glob('./src/pages/**/*.tsx');
-      const apiEntryPoints = await glob('./src/pages/**/*.ts');
-      const watchDirs = await getSubfoldersRecusive('./src');
-      try {
-        const { metafile: pagesMetafile } = await build({
-          bundle: true,
-          entryPoints: pagesEntryPoints,
-          plugins: [ExportRenderPlugin],
-          outbase: './src/pages',
-          outdir: './build/pages/',
-          outExtension: { '.js': '.mjs' },
-          format: 'esm',
-          splitting: true,
-          platform: 'browser',
-          tsconfig: 'tsconfig.json',
-          jsxFactory: 'h',
-          jsxFragment: 'Fragment',
-          logLevel: 'silent',
-          metafile: true
-        });
-        metafiles['pages'] = pagesMetafile;
-
-        const { metafile: apiMetafile } = await build({
-          entryPoints: apiEntryPoints,
-          outExtension: { '.js': '.mjs' },
-          outbase: './src/pages',
-          outdir: './build/pages',
-          format: 'esm',
-          platform: 'node',
-          tsconfig: 'tsconfig.json',
-          logLevel: 'silent',
-          metafile: true
-        });
-        metafiles['api'] = apiMetafile;
-
-        const combinedOutputs = [...Object.keys(pagesMetafile.outputs), ...Object.keys(apiMetafile.outputs)];
-        const pages = combinedOutputs
-          .filter(path => /\.m?js$/.test(path))
-          .filter(path => !/.*\/chunk-[A-Z0-9]{8}.m?js$/.test(path));
-
-        const watchFiles = [...Object.keys(apiMetafile.inputs), ...Object.keys(pagesMetafile.inputs)];
-
-        return {
-          path: 'pages',
-          namespace: 'squid',
-          pluginData: { pages },
-          watchFiles,
-          watchDirs
-        };
-      } catch (_) {
-        const e = _ as BuildFailure;
-
-        return {
-          errors: [...e.errors],
-          warnings: [...e.warnings],
-          watchDirs,
-          watchFiles: [...pagesEntryPoints, ...apiEntryPoints]
-        };
-      }
-    });
-
-    //after build copy public folder
-    pluginBuild.onEnd(async () => {
-      if (!fileExists('./public')) {
-        try {
-          await fs.mkdir('./build/public');
-        } catch (_) { }
-      }
-      else {
-        await fs.cp('./public', './build/public', { recursive: true });
-      }
-      await fs.cp('./node_modules/squid-ssr/src/modules/hydrate.js', './build/public/hydrate.js');
-    });
-
-    // ? Currently only express is external because it can not be bundled
-    // ? Users might import stuff in the API that can not be bundled aswell
-    // ? In the future, the hook below could mark all known troublemakers as external
-    // pluginBuild.onResolve({ filter: /.*/ }, async (opts) => {
-    //   const importPath = opts.resolveDir.replaceAll('\\', '/');
-    //   console.log(importPath);
-
-    //   return { external: false };
-    // });
   }
 };
 
@@ -290,6 +114,222 @@ export async function getContext() {
     await fs.rm('./build', { recursive: true });
 
   const config = JSON.parse((await fs.readFile('./squid.json')).toString());
+
+
+  /**
+   * This plugin builds all the pages
+   * and then generates and object representing the folder structure
+   * to access them for server side rendering
+   */
+  const SquidPlugin: Plugin = {
+    name: 'SquidPlugin',
+    setup(pluginBuild) {
+      //TIMING AND DATA COLLECTION
+      let startTime: number;
+      let metafiles: { api: Metafile | null, pages: Metafile | null; } = { api: null, pages: null };
+      pluginBuild.onStart(() => {
+        startTime = Date.now();
+      });
+
+      //Listener for error message and information
+      pluginBuild.onEnd(result => {
+        if (result.errors.length == 0) return;
+
+        const highlightText = (text: string, start: number, end: number) => {
+          const before = text.substring(0, start);
+          const toHighlight = text.substring(start, end);
+          const highlighted = `\x1b[92m${toHighlight}\x1b[0m`;
+          const after = text.substring(end);
+          return before + highlighted + after + `\n` +
+            //squiggles
+            before.replaceAll(/./g, ' ') +
+            `\x1b[92m${toHighlight.replaceAll(/./g, '~')}\x1b[0m`
+            ;
+        };
+
+        const formatMessage = (m: PartialMessage, error = true) => {
+          const message =
+            `${error ? '❌' : '⚠️'} \x1b[41m\x1b[97m[ERROR]\x1b[0m ` +
+            `${m.text}\n\n` +
+            `    ${m.location?.file ?? 'source'}:${m.location?.line ?? 'unknown'}:${m.location?.column ?? 'unknown'}:\n` +
+            `      ${m.location?.lineText ?
+              highlightText(
+                m.location.lineText,
+                m.location.column ?? 0,
+                (m.location.column ?? 0) + (m.location.length ?? 0)).replace('\n', '\n      ')
+              : ''}`;
+
+          return message;
+        };
+
+        result.errors.forEach(e => console.log(formatMessage(e)));
+        result.warnings.forEach(e => console.log(formatMessage(e)));
+
+        console.log(`${result.errors.length} ${result.errors.length == 1 ? 'error' : 'errors'}`);
+
+
+        // console.log(result.errors[0]);
+
+      });
+
+      //Listener for success message and build information
+      pluginBuild.onEnd(result => {
+        if (result.errors.length > 0) return;
+
+        const formatOutputFiles = (output: Metafile['outputs']): string[] => {
+          const files = Object.keys(output);
+          return files.map(file => `  \x1b[33m•\x1b[0m ${file} \x1b[32m${formatBytes(output[file].bytes)}\x1b[0m`);
+        };
+
+        console.log();
+        console.log(formatOutputFiles(metafiles.pages!.outputs).join('\n'));
+        console.log(formatOutputFiles(metafiles.api!.outputs).join('\n'));
+        console.log(formatOutputFiles(result.metafile!.outputs).join('\n'));
+        console.log();
+        console.log(`Total size: \x1b[32m${formatBytes([
+          ...Object.values(metafiles.pages!.outputs).map(v => v.bytes),
+          ...Object.values(metafiles.api!.outputs).map(v => v.bytes),
+          ...Object.values(result.metafile!.outputs).map(v => v.bytes),
+        ].reduce((prev, cur) => prev + cur))}\x1b[0m`);
+        console.log(`⚡ \x1b[32mDone in \x1b[33m${Date.now() - startTime}ms\x1b[0m`);
+        console.log();
+      });
+
+      pluginBuild.onLoad({ filter: /pages/, namespace: 'squid' }, async (options) => {
+        //this maps the output locations of all pages to a tuple containing the correct import path
+        //and a suitable unique name for the default import based on the path
+        // example: /home/user/project/build/pages/welcome/index.js ->
+        // ["welcome_index", "./welcome/index.js"]
+        const imports: [string, string][] = options.pluginData.pages
+          .map((file: string) => file.replace(/^build\//, ''))
+          .map((file: string) => (
+            [
+              file
+                .replaceAll('\\', '/') //convert windows to unix
+                .replaceAll(/(\/?)[{[(](.*?)[)}\]](\/?)/g, '$1$2$3') //remove parameter brackets
+                .replaceAll('/', '_')  //make path to snake case name
+                .replace(/\.m?js$/, ''), //remove file extension
+              file]));
+
+        const importPathFragments: [string, string[]][] = imports.map(([name, path]) => [name, path.replace(/^pages\//, '').replace(/\.[m]js$/, '').split('/')]);
+
+        const tree: Tree = generateTree(importPathFragments);
+
+        return {
+          /**
+           * Generate the import statements for all loaded pages
+           * and export a map to find them by path
+           */
+          contents: [
+            ...imports.map(([name, path]) => `import * as ${name} from './${path}';`),
+            `export default ${imports.reduce(
+              (prev, [name]) => prev.replace(`"${name}"`, name), JSON.stringify(tree, null, 2))
+            };`
+          ].join('\n'),
+          resolveDir: './build',
+        };
+      });
+
+      pluginBuild.onResolve({ filter: /^\.\/pages/ }, async (options) => {
+        return { external: true }; // all pages are external
+      });
+
+
+      pluginBuild.onResolve({ filter: /squid\/pages/ }, async (options) => {
+        const pagesEntryPoints = await glob('./src/pages/**/*.tsx');
+        const apiEntryPoints = await glob('./src/pages/**/*.ts');
+        const watchDirs = await getSubfoldersRecusive('./src');
+        try {
+          const { metafile: pagesMetafile } = await build({
+            entryPoints: pagesEntryPoints,
+            plugins: [ExportRenderPlugin],
+            outbase: './src/pages',
+            outdir: './build/pages/',
+            tsconfig: 'tsconfig.json',
+            outExtension: { '.js': '.mjs' },
+            bundle: true,
+            splitting: true,
+            format: 'esm',
+            platform: 'browser',
+            jsxFactory: 'h',
+            jsxFragment: 'Fragment',
+            logLevel: 'silent',
+            metafile: true,
+            alias: { 'react': 'preact/compat' },
+            external: ['express', ...config['buildOptions']?.['external'] ?? []],
+            loader: { ...config['buildOptions']?.['loader'] ?? {} },
+            minify: config['buildOptions']?.['minify'] ?? false,
+          });
+          metafiles['pages'] = pagesMetafile;
+
+          const { metafile: apiMetafile } = await build({
+            entryPoints: apiEntryPoints,
+            plugins: [TSAliasPlugin],
+            outExtension: { '.js': '.mjs' },
+            bundle: true,
+            splitting: true,
+            outbase: './src/pages',
+            outdir: './build/pages',
+            format: 'esm',
+            platform: 'node',
+            tsconfig: 'tsconfig.json',
+            logLevel: 'silent',
+            metafile: true,
+            loader: { ...config['buildOptions']?.['loader'] ?? {} },
+            minify: config['buildOptions']?.['minify'] ?? false,
+          });
+          metafiles['api'] = apiMetafile;
+
+          const combinedOutputs = [...Object.keys(pagesMetafile.outputs), ...Object.keys(apiMetafile.outputs)];
+          const pages = combinedOutputs
+            .filter(path => /\.m?js$/.test(path))
+            .filter(path => !/.*\/chunk-[A-Z0-9]{8}.m?js$/.test(path));
+
+          const watchFiles = [...Object.keys(apiMetafile.inputs), ...Object.keys(pagesMetafile.inputs)];
+
+          return {
+            path: 'pages',
+            namespace: 'squid',
+            pluginData: { pages },
+            watchFiles,
+            watchDirs
+          };
+        } catch (_) {
+          const e = _ as BuildFailure;
+
+          return {
+            errors: [...e.errors],
+            warnings: [...e.warnings],
+            watchDirs,
+            watchFiles: [...pagesEntryPoints, ...apiEntryPoints, ...e.errors.map(e => e.location?.file ?? '')]
+          };
+        }
+      });
+
+      //after build copy public folder
+      pluginBuild.onEnd(async () => {
+        if (!fileExists('./src/public')) {
+          try {
+            await fs.mkdir('./build/public');
+          } catch (_) { }
+        }
+        else {
+          await fs.cp('./src/public', './build/public', { recursive: true });
+        }
+        await fs.cp('./node_modules/squid-ssr/src/modules/hydrate.js', './build/public/hydrate.js');
+      });
+
+      // ? Currently only express is external because it can not be bundled
+      // ? Users might import stuff in the API that can not be bundled aswell
+      // ? In the future, the hook below could mark all known troublemakers as external
+      // pluginBuild.onResolve({ filter: /.*/ }, async (opts) => {
+      //   const importPath = opts.resolveDir.replaceAll('\\', '/');
+      //   console.log(importPath);
+
+      //   return { external: false };
+      // });
+    }
+  };
 
   return await context({
     bundle: true,
@@ -301,6 +341,8 @@ export async function getContext() {
     platform: 'node',
     tsconfig: 'tsconfig.json',
     external: ['express', ...config['buildOptions']?.['external'] ?? []],
+    loader: { ...config['buildOptions']?.['loader'] ?? {} },
+    minify: config['buildOptions']?.['minify'] ?? false,
     logLevel: 'silent',
     metafile: true
   });
