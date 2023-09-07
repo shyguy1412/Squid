@@ -9,6 +9,7 @@ import { existsSync as fileExists } from 'fs';
 //This import is handled by the Compiler
 //Its a tree structure that represents the paths to the modules
 //The leafs are the modules corresponsding to the path it takes to reach them
+//@ts-ignore
 import moduleMap from "squid/pages";
 
 export type ServerSideProps = {
