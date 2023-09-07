@@ -94,11 +94,11 @@ const TSAliasPlugin: Plugin = {
       if (opts.kind == 'entry-point') return { external: false };
 
       for (const [key, value] of Object.entries(alias as { [key: string]: string[]; })) {
-          const aliasRegex = new RegExp(`^${key}.*`);
-          if (aliasRegex.test(opts.path)) {
-            return {
-              external: false,
-            };
+        const aliasRegex = new RegExp(`^${key}.*`);
+        if (aliasRegex.test(opts.path)) {
+          return {
+            external: false,
+          };
         }
       }
 
@@ -186,6 +186,13 @@ export async function getContext() {
         console.log(formatOutputFiles(metafiles.api!.outputs).join('\n'));
         console.log(formatOutputFiles(result.metafile!.outputs).join('\n'));
         console.log();
+        console.log(`Frontend:   \x1b[32m${formatBytes([
+          ...Object.values(metafiles.pages!.outputs).map(v => v.bytes),
+        ].reduce((prev, cur) => prev + cur))}\x1b[0m`);
+        console.log(`Backend:    \x1b[32m${formatBytes([
+          ...Object.values(metafiles.api!.outputs).map(v => v.bytes),
+          ...Object.values(result.metafile!.outputs).map(v => v.bytes),
+        ].reduce((prev, cur) => prev + cur))}\x1b[0m`);
         console.log(`Total size: \x1b[32m${formatBytes([
           ...Object.values(metafiles.pages!.outputs).map(v => v.bytes),
           ...Object.values(metafiles.api!.outputs).map(v => v.bytes),
