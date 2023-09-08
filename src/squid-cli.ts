@@ -11,6 +11,7 @@ import { getContext } from "./modules/compile";
 import PageTemplate from '@/templates/Page.txt';
 import ApiTemplate from '@/templates/ApiEndpoint.txt';
 import ComponentTemplate from '@/templates/Component.txt';
+import PropsTemplate from '@/templates/Props.txt';
 
 (async () => {
   try {
@@ -94,7 +95,8 @@ import ComponentTemplate from '@/templates/Component.txt';
           try {
             const fullPath = './src/pages/' + path;
             await createDirectory(fullPath);
-            await fs.writeFile((fullPath).replace(/(.tsx)?$/, '.tsx'), PageTemplate);
+            await fs.writeFile((fullPath).replace(/(.tsx)?$/, '.tsx'), `import type {ServerSideProps} from '@/pages/${(path).replace(/(.tsx)?$/, '.props')}'\n${PageTemplate}`);
+            await fs.writeFile((fullPath).replace(/(.tsx)?$/, '.props.ts'), PropsTemplate);
           } catch (e) {
             throw new Error('Invalid path');
           }
