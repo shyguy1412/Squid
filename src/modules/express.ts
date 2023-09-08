@@ -60,18 +60,10 @@ async function resolveRequestPathToModule(url: string) {
 
       const module = (position as typeof moduleMap)[node];
 
-      if (Object.keys(module).includes('index')) {
-        moduleFragments.push('index');
-        return {
-          module: (position as typeof moduleMap)['index'] as SquidModule,
-          props: (position as typeof moduleMap)['index.props'] as SquidModule,
-        };
-      } else {
-        return {
-          module: module as SquidModule,
-          props: (position as typeof moduleMap)[`${node}.props`] as SquidModule,
-        };
-      }
+      return {
+        module: module as SquidModule,
+        props: (position as typeof moduleMap)[`${node}.props`] as SquidModule,
+      };
 
     }
 
