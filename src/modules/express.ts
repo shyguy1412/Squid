@@ -43,9 +43,8 @@ async function resolveRequestPathToModule(url: string) {
   }
 
   function recursiveWalk(position: typeof moduleMap | SquidModule, path: string[]): { module?: SquidModule, props?: SquidModule; } {
-    let node = path.shift();
+    let node = path.shift() || 'index';
     const nextNode = path[0];
-    if (!node) return {};
     if ((position as typeof moduleMap)[node] == undefined) {
 
       const dynamicNode = getDynamicNode(position);
@@ -136,8 +135,6 @@ async function page(req: Request, res: Response, next: NextFunction) {
   if (!module) return next();
 
   if (props && 'h' in props && 'render' in props) {
-    console.log(props);
-    
     throw new Error("Props should only export getSeverSideProps");
   }
 
