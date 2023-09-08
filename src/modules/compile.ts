@@ -67,13 +67,14 @@ function generateTree(pathList: [string, string[]][]): Tree {
 const ExportRenderPlugin: Plugin = {
   name: 'ExportRenderPlugin',
   setup(pluginBuild) {
-    pluginBuild.onLoad({ filter: /pages/ }, async (opts) => {
-      const contents = (await fs.readFile(opts.path))
+
+    pluginBuild.onLoad({ filter: /pages.*\.tsx$/ }, async (opts) => {
+      const contents = (await fs.readFile(opts.path)).toString()
         + '\nexport {h, hydrate} from \'preact\';'
         + '\nexport {render} from \'preact-render-to-string\';';
       return {
         contents,
-        loader: 'tsx'
+        loader: 'tsx',
       };
     });
   }
@@ -93,7 +94,7 @@ const TSAliasPlugin: Plugin = {
     build.onResolve({ filter: /.*/, namespace: 'file' }, (opts) => {
       if (opts.kind == 'entry-point') return { external: false };
 
-      for (const [key, value] of Object.entries(alias as { [key: string]: string[]; })) {
+      for (const [key] of Object.keys(alias)) {
         const aliasRegex = new RegExp(`^${key}.*`);
         if (aliasRegex.test(opts.path)) {
           return {
@@ -214,8 +215,8 @@ export async function getContext() {
               file
                 .replaceAll('\\', '/') //convert windows to unix
                 .replaceAll(/(\/?)[{[(](.*?)[)}\]](\/?)/g, '$1$2$3') //remove parameter brackets
-                .replaceAll('/', '_')  //make path to snake case name
-                .replace(/\.m?js$/, ''), //remove file extension
+                .replaceAll(/[^A-Za-z0-9]/g, '_')  //make path to snake case name
+                .replace(/_?m?js$/, ''), //remove file extension
               file]));
 
         const importPathFragments: [string, string[]][] = imports.map(([name, path]) => [name, path.replace(/^pages\//, '').replace(/\.[m]js$/, '').split('/')]);
