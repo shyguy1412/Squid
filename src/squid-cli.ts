@@ -6,12 +6,17 @@ import nodemon from "nodemon";
 import path from "path";
 import fs from "fs/promises";
 import { existsSync as fileExists } from "fs";
-import { getContext } from "./modules/compile";
 
 import PageTemplate from '@/templates/Page.txt';
 import ApiTemplate from '@/templates/ApiEndpoint.txt';
 import ComponentTemplate from '@/templates/Component.txt';
 import PropsTemplate from '@/templates/Props.txt';
+import { context } from "@/modules/compile";
+
+const createContext = async () => await context({
+  splitting: true,
+  tsconfig: './tsconfig.json',
+});
 
 (async () => {
   try {
@@ -30,7 +35,7 @@ import PropsTemplate from '@/templates/Props.txt';
     .command('build')
     .description('Build project for production')
     .action(async () => {
-      const { rebuild, dispose } = await getContext();
+      const { rebuild, dispose } = await createContext();
 
       try {
         await rebuild();
@@ -44,7 +49,7 @@ import PropsTemplate from '@/templates/Props.txt';
     .description('Starts Squid server and rebuilds development build of the project on file changes')
     .action(async () => {
 
-      const { rebuild, watch } = await getContext();
+      const { rebuild, watch } = await createContext();
 
       // await rebuild();
       await watch();

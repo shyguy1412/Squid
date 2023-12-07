@@ -1,2 +1,5 @@
 import squid from './modules/express';
-export default squid;
+import { context } from '@/modules/compile';
+import type { SquidModuleMap } from '@/modules/Pages';
+
+export { squid, context, SquidModuleMap };

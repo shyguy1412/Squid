@@ -5,12 +5,7 @@ import express from "express";
 import path from "path";
 import { parse } from 'url';
 import { existsSync as fileExists } from 'fs';
-
-//This import is handled by the Compiler
-//Its a tree structure that represents the paths to the modules
-//The leafs are the modules corresponsding to the path it takes to reach them
-//@ts-ignore
-import moduleMap from "squid/pages";
+import { SquidModuleMap } from '@/modules/Pages';
 
 export type ServerSideProps = {
   props?: {
@@ -33,19 +28,19 @@ export type SquidModule = {
  * aswell as any query parameters in the path
  * and the path to the sourcefile of that module
  */
-async function resolveRequestPathToModule(url: string) {
+async function resolveRequestPathToModule(url: string, moduleMap: SquidModuleMap) {
   const pathFragments = url.substring(1).split('/');
   const moduleFragments: string[] = [];
   const queryParams: { [key: string]: string; } = {};
 
-  function getDynamicNode(position: typeof moduleMap | SquidModule) {
+  function getDynamicNode(position: SquidModuleMap | SquidModule) {
     return Object.keys(position).find(key => /^\{.*\}$/.test(key)) ?? false;
   }
 
-  function recursiveWalk(position: typeof moduleMap | SquidModule, path: string[]): { module?: SquidModule, props?: SquidModule; } {
+  function recursiveWalk(position: SquidModuleMap | SquidModule, path: string[]): { module?: SquidModule, props?: SquidModule; } {
     let node = path.shift() || 'index';
     const nextNode = path[0];
-    if ((position as typeof moduleMap)[node] == undefined) {
+    if ((position as SquidModuleMap)[node] == undefined) {
 
       const dynamicNode = getDynamicNode(position);
 
@@ -58,22 +53,22 @@ async function resolveRequestPathToModule(url: string) {
     if (!nextNode) {
       moduleFragments.push(node);
 
-      let module = (position as typeof moduleMap)[node];
+      let module = (position as SquidModuleMap)[node];
 
-      if ((module as typeof moduleMap)['index']) {
+      if ((module as SquidModuleMap)['index']) {
         moduleFragments.push('index');
-        module = (module as typeof moduleMap)['index'];
+        module = (module as SquidModuleMap)['index'];
       }
 
       return {
         module: module as SquidModule,
-        props: (position as typeof moduleMap)[`${node}.props`] as SquidModule,
+        props: (position as SquidModuleMap)[`${node}.props`] as SquidModule,
       };
 
     }
 
     moduleFragments.push(node);
-    return recursiveWalk((position as typeof moduleMap)[node] as typeof moduleMap, path);
+    return recursiveWalk((position as SquidModuleMap)[node] as SquidModuleMap, path);
   }
 
   const { module, props } = recursiveWalk(moduleMap, pathFragments);
@@ -94,85 +89,91 @@ async function resolveRequestPathToModule(url: string) {
 }
 
 //STYLE MIDDLEWARE
-async function style(req: Request, res: Response, next: NextFunction) {
-  if (!/\?style$/.test(req.originalUrl)) return next();
+function style(moduleMap: SquidModuleMap) {
+  return async function (req: Request, res: Response, next: NextFunction) {
+    if (!/\?style$/.test(req.originalUrl)) return next();
 
-  const requestPath = (parse(req.originalUrl).pathname ?? '').replace('/hydrate', '');
-  const { module, path } = await resolveRequestPathToModule(requestPath);
+    const requestPath = (parse(req.originalUrl).pathname ?? '').replace('/hydrate', '');
+    const { module, path } = await resolveRequestPathToModule(requestPath, moduleMap);
 
-  if (!module) return next();
+    if (!module) return next();
 
-  const stylePath = path.replace(/\.m?js$/, '.css');
+    const stylePath = path.replace(/\.m?js$/, '.css');
 
-  if (fileExists(stylePath))
-    return res.sendFile(stylePath);
+    if (fileExists(stylePath))
+      return res.sendFile(stylePath);
 
-  return next();
+    return next();
+  };
 };
 
 //HYDRATE MIDDLEWARE
-async function hydrate(req: Request, res: Response, next: NextFunction) {
-  if (!/\?hydrate$/.test(req.originalUrl)) return next();
+function hydrate(moduleMap: SquidModuleMap) {
+  return async function (req: Request, res: Response, next: NextFunction) {
+    if (!/\?hydrate$/.test(req.originalUrl)) return next();
 
-  const requestPath = (parse(req.originalUrl).pathname ?? '').replace('/hydrate', '');
-  const { module, path } = await resolveRequestPathToModule(requestPath);
+    const requestPath = (parse(req.originalUrl).pathname ?? '').replace('/hydrate', '');
+    const { module, path } = await resolveRequestPathToModule(requestPath, moduleMap);
 
-  if (!module) return next();
+    if (!module) return next();
 
-  res.sendFile(path);
-  return;
+    res.sendFile(path);
+    return;
+  };
 };
 
 //PAGE MIDDLEWARE
-async function page(req: Request, res: Response, next: NextFunction) {
+function page(moduleMap: SquidModuleMap) {
+  return async function (req: Request, res: Response, next: NextFunction) {
 
-  const requestPath = parse(req.originalUrl).path ?? '';
-  const { module, props, queryParams } = await resolveRequestPathToModule(requestPath);
+    const requestPath = parse(req.originalUrl).path ?? '';
+    const { module, props, queryParams } = await resolveRequestPathToModule(requestPath, moduleMap);
 
-  if (!module) return next();
+    if (!module) return next();
 
-  if (props && 'h' in props && 'render' in props) {
-    throw new Error("Props should only export getSeverSideProps");
-  }
-
-  Object.assign(req.params, queryParams);
-
-  try {
-    if ('h' in module && 'render' in module) {
-      if (req.method.toLowerCase() != 'get') return next();
-
-      const { render, h, default: App } = module;
-      const { default: getServerSideProps } = props ?? { getServerSideProps: undefined };
-      if (getServerSideProps && typeof getServerSideProps != 'function') {
-        throw new Error('ServerSideProps need to be a function');
-      }
-      const serverSideProps = getServerSideProps ? await getServerSideProps(req, res) : undefined;
-      // const props = serverSideProps ? serverSideProps.props : {};
-      // const redirect = serverSideProps ? serverSideProps.redirect : undefined;
-
-      if (serverSideProps?.redirect) {
-        return res.redirect(serverSideProps.redirect);
-      }
-      const renderedHTML = '<!DOCTYPE html>\n' + render(h(App, serverSideProps?.props))
-        .replace('<head>', `<head><script>window['squid-ssr-props'] = JSON.parse('${JSON.stringify(serverSideProps?.props ?? {}).replaceAll('\\', '\\\\')}');</script><script src="/hydrate.js" defer></script>`);
-
-      res.send(renderedHTML);
-      return;
+    if (props && 'h' in props && 'render' in props) {
+      throw new Error("Props should only export getSeverSideProps");
     }
 
-    module.default(req, res);
-  } catch (e) {
-    console.error(e);
-    res.status(500).send('Internal Server Error');
-  }
+    Object.assign(req.params, queryParams);
+
+    try {
+      if ('h' in module && 'render' in module) {
+        if (req.method.toLowerCase() != 'get') return next();
+
+        const { render, h, default: App } = module;
+        const { default: getServerSideProps } = props ?? { getServerSideProps: undefined };
+        if (getServerSideProps && typeof getServerSideProps != 'function') {
+          throw new Error('ServerSideProps need to be a function');
+        }
+        const serverSideProps = getServerSideProps ? await getServerSideProps(req, res) : undefined;
+        // const props = serverSideProps ? serverSideProps.props : {};
+        // const redirect = serverSideProps ? serverSideProps.redirect : undefined;
+
+        if (serverSideProps?.redirect) {
+          return res.redirect(serverSideProps.redirect);
+        }
+        const renderedHTML = '<!DOCTYPE html>\n' + render(h(App, serverSideProps?.props))
+          .replace('<head>', `<head><script>window['squid-ssr-props'] = JSON.parse('${JSON.stringify(serverSideProps?.props ?? {}).replaceAll('\\', '\\\\')}');</script><script src="/hydrate.js" defer></script>`);
+
+        res.send(renderedHTML);
+        return;
+      }
+
+      module.default(req, res);
+    } catch (e) {
+      console.error(e);
+      res.status(500).send('Internal Server Error');
+    }
+  };
 }
 
-export default function () {
+export default function (moduleMap: SquidModuleMap) {
   return [
     express.static('./build/public'),
-    style,
-    hydrate,
-    page,
+    style(moduleMap),
+    hydrate(moduleMap),
+    page(moduleMap),
     express.static('./build/pages'),
   ];
 };

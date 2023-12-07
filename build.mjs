@@ -18,14 +18,14 @@ const typePlugin = {
 };
 
 const ctx = await context({
-  entryPoints: ['./src/squid-cli.ts', './src/hooks/index.ts'],
+  entryPoints: ['./src/squid-cli.ts', './src/hooks/index.ts', './src/hooks/client/index.ts', './src/index.ts'],
   bundle: true,
   plugins: [typePlugin],
-  external: ['commander', 'esbuild', 'nodemon', 'preact'],
-  // packages: 'external',
+  packages: 'external',
   // outExtension: {'.js': '.mjs'},
   outdir: './dist',
   outbase: "./src",
+  tsconfig: './tsconfig.json',
   minify: !WATCH,
   format: 'cjs',
   platform: 'node',

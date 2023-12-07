@@ -11,14 +11,17 @@
   },
   "exports": {
     ".": {
-      "default": "./src/index.ts"
+      "default": "./dist/index.js"
+    },
+    "./pages": {
+      "types": "./src/modules/Pages.d.ts"
     },
     "./hooks": {
       "default": "./dist/hooks/index.js",
       "types": "./dist/hooks/index.d.ts"
     },
     "./hooks/client": {
-      "default": "./src/hooks/client/index.ts"
+      "default": "./dist/hooks/client/index.js"
     }
   },
   "repository": {
@@ -39,20 +42,20 @@
     "squid"
   ],
   "peerDependencies": {
-    "@types/express": "^4.17.17",
+    "@types/express": "^4.17.21",
     "express": "^4.18.2",
-    "preact": "^10.17.1",
-    "preact-render-to-string": "^6.2.1"
+    "preact": "^10.19.2",
+    "preact-render-to-string": "^6.3.1"
   },
   "dependencies": {
-    "@types/express": "^4.17.17",
-    "esbuild": "^0.17.19",
-    "glob": "^10.3.4",
-    "commander": "^10.0.1",
-    "nodemon": "^2.0.22"
+    "@types/express": "^4.17.21",
+    "commander": "^11.1.0",
+    "esbuild": "^0.19.8",
+    "glob": "^10.3.10",
+    "nodemon": "^3.0.2"
   },
   "devDependencies": {
-    "@types/node": "^18.17.13",
-    "@types/nodemon": "^1.19.2"
+    "@types/node": "^20.10.4",
+    "@types/nodemon": "^1.19.6"
   }
 }
