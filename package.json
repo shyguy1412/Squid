@@ -16,6 +16,9 @@
     "./hooks": {
       "default": "./dist/hooks/index.js",
       "types": "./dist/hooks/index.d.ts"
+    },
+    "./hooks/client": {
+      "default": "./src/hooks/client/index.ts"
     }
   },
   "repository": {

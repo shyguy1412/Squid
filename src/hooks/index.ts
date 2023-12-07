@@ -1,2 +1,2 @@
 export * from './useCookies';
-export * from './ServerSentEvents';
+export * from './createServerSentEvents';

@@ -21,7 +21,7 @@ const ctx = await context({
   entryPoints: ['./src/squid-cli.ts', './src/hooks/index.ts'],
   bundle: true,
   plugins: [typePlugin],
-  external: ['commander', 'esbuild', 'nodemon'],
+  external: ['commander', 'esbuild', 'nodemon', 'preact'],
   // packages: 'external',
   // outExtension: {'.js': '.mjs'},
   outdir: './dist',

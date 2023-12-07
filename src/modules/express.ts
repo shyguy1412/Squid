@@ -58,7 +58,12 @@ async function resolveRequestPathToModule(url: string) {
     if (!nextNode) {
       moduleFragments.push(node);
 
-      const module = (position as typeof moduleMap)[node];
+      let module = (position as typeof moduleMap)[node];
+
+      if ((module as typeof moduleMap)['index']) {
+        moduleFragments.push('index');
+        module = (module as typeof moduleMap)['index'];
+      }
 
       return {
         module: module as SquidModule,
