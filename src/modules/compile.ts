@@ -76,8 +76,11 @@ const SquidPlugin: Plugin = {
     //TIMING AND DATA COLLECTION
     let startTime: number;
     let metafiles: { api: Metafile | null, pages: Metafile | null; } = { api: null, pages: null };
-    pluginBuild.onStart(() => {
+    pluginBuild.onStart(async () => {
       startTime = Date.now();
+      if (fileExists('./build')) {
+        await fs.rm('./build', { recursive: true });
+      }
     });
 
     //Listener for success message and build information
@@ -163,7 +166,6 @@ const SquidPlugin: Plugin = {
           outdir: './build/pages/',
           outfile: undefined,
           packages: undefined,
-          tsconfig: 'tsconfig.json',
           outExtension: { '.js': '.mjs' },
           bundle: true,
           splitting: true,
@@ -191,7 +193,6 @@ const SquidPlugin: Plugin = {
           outfile: undefined,
           format: 'esm',
           platform: 'node',
-          tsconfig: 'tsconfig.json',
           logLevel: 'silent',
           metafile: true,
         });
@@ -240,6 +241,7 @@ const SquidPlugin: Plugin = {
 
 export function context(options: BuildOptions) {
   return esbuildContext({
+    tsconfig: 'tsconfig.json',
     ...options,
     plugins: [SquidPlugin, ErrorReporterPlugin, ...options.plugins ?? []],
     entryPoints: ['./src/main.ts'],

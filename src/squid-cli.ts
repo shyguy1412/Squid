@@ -126,9 +126,6 @@ const createContext = async () => await context({
         return;
       }
 
-      console.log(opts);
-      
-
       throw new Error('Invalid or no type');
     });
 

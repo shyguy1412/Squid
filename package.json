@@ -16,12 +16,15 @@
     "./pages": {
       "types": "./src/modules/Pages.d.ts"
     },
-    "./hooks": {
+    "./components": {
+      "default": "./src/components/index.tsx"
+    },
+    "./hooks/server": {
       "default": "./dist/hooks/index.js",
       "types": "./dist/hooks/index.d.ts"
     },
     "./hooks/client": {
-      "default": "./dist/hooks/client/index.js"
+      "default": "./src/hooks/client/index.ts"
     }
   },
   "repository": {

@@ -18,7 +18,11 @@ const typePlugin = {
 };
 
 const ctx = await context({
-  entryPoints: ['./src/squid-cli.ts', './src/hooks/index.ts', './src/hooks/client/index.ts', './src/index.ts'],
+  entryPoints: [
+    './src/squid-cli.ts',
+    './src/hooks/index.ts',
+    './src/index.ts'
+  ],
   bundle: true,
   plugins: [typePlugin],
   packages: 'external',

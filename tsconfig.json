@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     "target": "ESNext",
-    "lib": ["esnext"],
+    "lib": [
+      "esnext"
+    ],
     "esModuleInterop": true,
     "strict": true,
     "module": "esnext",
@@ -10,11 +12,17 @@
     "sourceMap": true,
     "outDir": "./dist",
     "emitDeclarationOnly": true,
+    "jsx": "react",
+    "jsxFactory": "h",
+    "jsxFragmentFactory": "Fragment",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": [
+        "src/*"
+      ]
     }
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/squid-client.ts"]
+  "include": [
+    "src/**/*"
+  ]
 }
