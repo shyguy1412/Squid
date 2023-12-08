@@ -78,48 +78,59 @@ const createContext = async () => await context({
     });
 
   program
-    .command('gen')
-    .argument('<type>', 'What component to generate. (comp, page, api)')
+    .command('generate')
+    .alias('g')
+    // .argument('<type>', 'What component to generate. (component, page, api)')
+    .option('-c, --component', 'generate a new preact function component')
+    .option('-p, --page', 'generate a new page')
+    .option('-a, --api-endpoint', 'generate a new api endpoint')
     .argument('<path>', 'Where to generate the component')
     .description('Generate new components, pages or API endpoints.')
-    .action(async (type, path) => {
+    .action(async (path, opts) => {
       if (!path) throw new Error('No path was given');
       if (typeof path !== 'string') throw new Error('Invalid path: ' + path);
-      switch (type) {
-        case 'comp':
-          try {
-            const fullPath = './src/components/' + path;
-            await createDirectory(fullPath);
-            await fs.writeFile((fullPath).replace(/(.tsx)?$/, '.tsx'), ComponentTemplate.replace('%COMPONENT_NAME%', path.split('/').at(-1) ?? 'Component'), {});
-          } catch (e) {
-            console.log(e);
-            throw new Error('Invalid path');
-          }
-          break;
-        case 'page':
-          try {
-            const fullPath = './src/pages/' + path;
-            await createDirectory(fullPath);
-            await fs.writeFile((fullPath).replace(/(.tsx)?$/, '.tsx'), `import type {ServerSideProps} from '@/pages/${(path).replace(/(.tsx)?$/, '.props')}'\n${PageTemplate}`);
-            await fs.writeFile((fullPath).replace(/(.tsx)?$/, '.props.ts'), PropsTemplate);
-          } catch (e) {
-            throw new Error('Invalid path');
-          }
-          break;
-        case 'api':
-          try {
-            const fullPath = './src/pages/' + path;
-            await createDirectory(fullPath);
-            await fs.writeFile((fullPath).replace(/(.ts)?$/, '.ts'), ApiTemplate);
-          } catch (e) {
-            throw new Error('Invalid path');
-          }
-          break;
-        default:
-          throw new Error('Invalid type: ' + type);
+
+      if (opts.component) {
+        try {
+          const fullPath = './src/components/' + path;
+          await createDirectory(fullPath);
+          await fs.writeFile((fullPath).replace(/(.tsx)?$/, '.tsx'), ComponentTemplate.replace('%COMPONENT_NAME%', path.split('/').at(-1) ?? 'Component'), {});
+        } catch (e) {
+          console.log(e);
+          throw new Error('Invalid path');
+        }
+        return;
       }
-    })
-    .options;
+
+      if (opts.page) {
+        try {
+          const fullPath = './src/pages/' + path;
+          await createDirectory(fullPath);
+          await fs.writeFile((fullPath).replace(/(.tsx)?$/, '.tsx'), `import type {ServerSideProps} from '@/pages/${(path).replace(/(.tsx)?$/, '.props')}'\n${PageTemplate}`);
+          await fs.writeFile((fullPath).replace(/(.tsx)?$/, '.props.ts'), PropsTemplate);
+        } catch (e) {
+          throw new Error('Invalid path');
+        }
+
+        return;
+      }
+
+      if (opts.apiEndpoint) {
+        try {
+          const fullPath = './src/pages/' + path;
+          await createDirectory(fullPath);
+          await fs.writeFile((fullPath).replace(/(.ts)?$/, '.ts'), ApiTemplate);
+        } catch (e) {
+          throw new Error('Invalid path');
+        }
+        return;
+      }
+
+      console.log(opts);
+      
+
+      throw new Error('Invalid or no type');
+    });
 
   program.parse();
 })();
