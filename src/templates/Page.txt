@@ -8,9 +8,9 @@ export default function App({ }: ServerSideProps) {
     <Head>
       <title>New Page</title>
     </Head>
-
-    Hello World!
-
+    <Body>
+      Hello World!
+    </Body>
   </Document>;
 
 }
