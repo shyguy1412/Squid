@@ -208,6 +208,7 @@ const createContext = async () => await context({
     .option('-c, --component', 'generate a new preact function component')
     .option('-p, --page', 'generate a new page')
     .option('-a, --api-endpoint', 'generate a new api endpoint')
+    .option('-l, --lambda', 'generate a new serverless lambda function')
     .argument('<path>', 'Where to generate the component')
     .description('Generate new components, pages or API endpoints.')
     .action(async (path, opts) => {
@@ -242,6 +243,17 @@ const createContext = async () => await context({
       if (opts.apiEndpoint) {
         try {
           const fullPath = './src/pages/' + path;
+          await createDirectory(fullPath);
+          await fs.writeFile((fullPath).replace(/(.ts)?$/, '.ts'), ApiTemplate);
+        } catch (e) {
+          throw new Error('Invalid path');
+        }
+        return;
+      }
+
+      if (opts.lambda) {
+        try {
+          const fullPath = './src/lambda/' + path;
           await createDirectory(fullPath);
           await fs.writeFile((fullPath).replace(/(.ts)?$/, '.ts'), ApiTemplate);
         } catch (e) {
