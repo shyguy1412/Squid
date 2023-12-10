@@ -1,0 +1,25 @@
+"use strict";
+
+import express from 'express';
+import handler from './handler.mjs';
+const app = express();
+
+app.disable('x-powered-by');
+app.use(function (req, res, next) {
+  req.body = Buffer.from('');
+
+  req.on('data', function (chunk) {
+    req.body = Buffer.concat([req.body, chunk]);
+  });
+
+  req.on('end', function () {
+    next();
+  });
+});
+app.use(handler);
+
+const port = process.env.http_port || 3000;
+
+app.listen(port, () => {
+  console.log(`express listening on port: ${port}`);
+});

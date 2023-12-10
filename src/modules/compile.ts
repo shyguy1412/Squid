@@ -75,7 +75,16 @@ const SquidPlugin: Plugin = {
 
     //TIMING AND DATA COLLECTION
     let startTime: number;
-    let metafiles: { api: Metafile | null, pages: Metafile | null; } = { api: null, pages: null };
+    let metafiles:
+      {
+        api: Metafile | null;
+        pages: Metafile | null;
+        lambda: Metafile | null;
+      } = {
+      api: null, pages: null,
+      lambda: null
+    };
+
     pluginBuild.onStart(async () => {
       startTime = Date.now();
       if (fileExists('./build')) {
@@ -155,6 +164,8 @@ const SquidPlugin: Plugin = {
     pluginBuild.onResolve({ filter: /squid-ssr\/pages/ }, async (options) => {
       const pagesEntryPoints = await glob('./src/pages/**/*.tsx');
       const apiEntryPoints = await glob('./src/pages/**/*.ts');
+      const lambdaEntrypoints = await glob('./src/lambda/**/*.ts');
+
       const watchDirs = await getSubfoldersRecusive('./src');
       const additonalPlugins = pluginBuild.initialOptions.plugins?.filter(p => p.name != 'SquidPlugin') ?? [];
       try {
@@ -198,12 +209,40 @@ const SquidPlugin: Plugin = {
         });
         metafiles['api'] = apiMetafile;
 
-        const combinedOutputs = [...Object.keys(pagesMetafile.outputs), ...Object.keys(apiMetafile.outputs)];
+        const { metafile: lambdaMetafile } = await build({
+          ...pluginBuild.initialOptions,
+          entryPoints: lambdaEntrypoints,
+          plugins: additonalPlugins,
+          outExtension: { '.js': '.mjs' },
+          bundle: true,
+          splitting: false,
+          packages: 'external',
+          outbase: './src/lambda',
+          outdir: './build/lambda/src',
+          outfile: undefined,
+          format: 'esm',
+          platform: 'node',
+          logLevel: 'silent',
+          metafile: true,
+        });
+
+        metafiles['lambda'] = apiMetafile;
+
+        const combinedOutputs = [
+          ...Object.keys(pagesMetafile.outputs),
+          ...Object.keys(apiMetafile.outputs),
+          ...Object.keys(lambdaMetafile.outputs)
+        ];
+
         const pages = combinedOutputs
           .filter(path => /\.m?js$/.test(path))
           .filter(path => !/.*\/chunk-[A-Z0-9]{8}.m?js$/.test(path));
 
-        const watchFiles = [...Object.keys(apiMetafile.inputs), ...Object.keys(pagesMetafile.inputs)];
+        const watchFiles = [
+          ...Object.keys(pagesMetafile.inputs),
+          ...Object.keys(apiMetafile.inputs),
+          ...Object.keys(lambdaMetafile.inputs)
+        ];
 
         return {
           path: 'pages',
@@ -216,10 +255,15 @@ const SquidPlugin: Plugin = {
         const e = _ as BuildFailure;
 
         return {
-          errors: [...e.errors],
-          warnings: [...e.warnings],
+          errors: e.errors,
+          warnings: e.warnings,
           watchDirs,
-          watchFiles: [...pagesEntryPoints, ...apiEntryPoints, ...e.errors.map(e => e.location?.file ?? '')]
+          watchFiles: [
+            ...pagesEntryPoints,
+            ...apiEntryPoints,
+            ...lambdaEntrypoints,
+            ...e.errors.map(e => e.location?.file ?? '')
+          ]
         };
       }
     });

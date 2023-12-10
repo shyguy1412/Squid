@@ -30,7 +30,7 @@ const ctx = await context({
   outdir: './dist',
   outbase: "./src",
   tsconfig: './tsconfig.json',
-  minify: !WATCH,
+  minify: false,
   format: 'cjs',
   platform: 'node',
   define: WATCH ? undefined : {
