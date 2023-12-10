@@ -26,10 +26,12 @@ const createContext = async () => await context({
 });
 
 (async () => {
+  let packageName = '';
   try {
     const package_json = JSON.parse((await fs.readFile('./package.json')).toString());
     if (package_json['name'])
       console.log(`Running in "${package_json['name']}"`);
+    packageName = package_json['name'];
   } catch (e) {
     if (typeof e === 'object' && 'message' in e!) {
       console.error(e['message']);
@@ -88,23 +90,14 @@ const createContext = async () => await context({
     .command('lambda');
 
   lambda.command('build')
+    .option('-p, --prefix <prefix>', 'prefix for the containers')
     .option('-r, --registry <registry>', 'Private Registry, if not given this will default to DockerHub')
+    .option('-D, --no-docker', 'generates lambda functions and dockerfiles but skips building the container. Use this when building on a server for deployment')
     .action(async (opts) => {
       await exec(npmExec, ['run', 'build'], {
         cwd: process.cwd(),
         stdio: "inherit"
       });
-
-      // const buildProcess = spawn(npmExec, ['run', 'build'], {
-      //   cwd: process.cwd(),
-      //   stdio: "inherit"
-      // });
-
-      // buildProcess.addListener('error', (e) => console.log(e));
-
-      // await new Promise<void>(resolve => {
-      //   buildProcess.addListener('exit', () => resolve());
-      // });
 
       if (!fileExists('./build/lambda/src')) {
         console.log('Project does not contain any lambda function');
@@ -113,14 +106,12 @@ const createContext = async () => await context({
 
       await fs.mkdir('./build/lambda/build');
 
-      if (opts.registry) {
-        fs.writeFile('./build/lambda/build/registry', opts.registry);
-      }
+      fs.writeFile('./build/lambda/build/config.json', JSON.stringify(opts));
 
       const lambdaDir = await fs.readdir('./build/lambda/src', { recursive: true, })
         .then(f => f.filter(f => f.endsWith('.mjs')))
         .then(f => f.map(f => [
-          f, f
+          f, packageName + '-' + f
             .replaceAll('\\', '/')
             .replaceAll('/', '-')
             .split('.')[0]
@@ -147,14 +138,17 @@ const createContext = async () => await context({
         // delete packageJson['dependencies']['squid-ssr'];
         // await fs.writeFile(`${buildDir}/package.json`, JSON.stringify(packageJson));
 
+        console.log(`-t${opts.registry ? opts.registry + '/' : ''}${(opts.prefix ? opts.prefix.replace(/\/?$/, '/') : '')}${functionName}:latest`);
 
-        await exec('docker', [
-          'build',
-          buildDir,
-          `-t${opts.registry ? opts.registry + '/' : ''}${functionName}:latest`], {
-          cwd: process.cwd(),
-          stdio: "inherit"
-        });
+        if (opts.docker)
+          await exec('docker', [
+            'build',
+            buildDir,
+            `-t${opts.registry ? opts.registry + '/' : ''}${(opts.prefix ? opts.prefix.replace(/\/?$/, '/') : '')}${functionName}:latest`
+          ], {
+            cwd: process.cwd(),
+            stdio: "inherit"
+          });
       }
 
     });
@@ -165,14 +159,14 @@ const createContext = async () => await context({
         .filter(f => f.isDirectory())
         .map(dir => dir.name);
 
-      const registry = fileExists('./build/lambda/build/registry') ?
-        (await fs.readFile('./build/lambda/build/registry')).toString('utf8') :
-        '';
+      const config = fileExists('./build/lambda/build/config.json') ?
+        JSON.parse((await fs.readFile('./build/lambda/build/config.json')).toString('utf8')) : {};
 
       for (const functionName of lambdaDir) {
         await exec('docker', [
           'push',
-          `${registry ? registry + '/' : ''}${functionName}:latest`], {
+          `${config.registry ? config.registry + '/' : ''}${(config.prefix ? config.prefix.replace(/\/?$/, '/') : '')}${functionName}:latest`
+        ], {
           cwd: process.cwd(),
           stdio: "inherit"
         });
@@ -185,14 +179,15 @@ const createContext = async () => await context({
         .filter(f => f.isDirectory())
         .map(dir => dir.name);
 
-      const registry = fileExists('./build/lambda/build/registry') ?
-        (await fs.readFile('./build/lambda/build/registry')).toString('utf8') :
-        '';
+      const config = fileExists('./build/lambda/build/config.json') ?
+        JSON.parse((await fs.readFile('./build/lambda/build/config.json')).toString('utf8')) : {};
+
 
       for (const functionName of lambdaDir) {
         await exec('faas-cli', [
           'deploy',
-          `--image`, `${registry ? registry + '/' : ''}${functionName}:latest`,
+          `--image`,
+          `${config.registry ? config.registry + '/' : ''}${(config.prefix ? config.prefix.replace(/\/?$/, '/') : '')}${functionName}:latest`,
           `--name`, `${functionName}`], {
           cwd: process.cwd(),
           stdio: "inherit"
