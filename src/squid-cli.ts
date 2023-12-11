@@ -17,6 +17,7 @@ import PropsTemplate from '@/templates/Props.txt';
 import LambdaDockerfile from '@/templates/lambda/Dockerfile.txt';
 import LambdaDockerignore from '@/templates/lambda/.dockerignore.txt';
 import LambdaEntrypoint from '@/templates/lambda/entrypoint.txt';
+import LambdaFunctionTemplate from '@/templates/lambda/LambdaFunction.txt';
 
 const npmExec = platform() == 'win32' ? 'npm.cmd' : 'npm';
 
@@ -138,7 +139,7 @@ const createContext = async () => await context({
         // delete packageJson['dependencies']['squid-ssr'];
         // await fs.writeFile(`${buildDir}/package.json`, JSON.stringify(packageJson));
 
-        console.log(`-t${opts.registry ? opts.registry + '/' : ''}${(opts.prefix ? opts.prefix.replace(/\/?$/, '/') : '')}${functionName}:latest`);
+        // console.log(`-t${opts.registry ? opts.registry + '/' : ''}${(opts.prefix ? opts.prefix.replace(/\/?$/, '/') : '')}${functionName}:latest`);
 
         if (opts.docker)
           await exec('docker', [
@@ -210,14 +211,19 @@ const createContext = async () => await context({
       if (!path) throw new Error('No path was given');
       if (typeof path !== 'string') throw new Error('Invalid path: ' + path);
 
+      const writeFile = (path: string, content: string) => {
+        if (fileExists(path)) throw new Error('File already exists!');
+        fs.writeFile(path, content);
+      };
+
       if (opts.component) {
         try {
           const fullPath = './src/components/' + path;
           await createDirectory(fullPath);
-          await fs.writeFile((fullPath).replace(/(.tsx)?$/, '.tsx'), ComponentTemplate.replace('%COMPONENT_NAME%', path.split('/').at(-1) ?? 'Component'), {});
+          await writeFile((fullPath).replace(/(.tsx)?$/, '.tsx'), ComponentTemplate.replace('%COMPONENT_NAME%', path.split('/').at(-1) ?? 'Component'));
         } catch (e) {
           console.log(e);
-          throw new Error('Invalid path');
+          throw new Error((e as Error).message || 'Invalid path');
         }
         return;
       }
@@ -226,10 +232,10 @@ const createContext = async () => await context({
         try {
           const fullPath = './src/pages/' + path;
           await createDirectory(fullPath);
-          await fs.writeFile((fullPath).replace(/(.tsx)?$/, '.tsx'), `import type {ServerSideProps} from '@/pages/${(path).replace(/(.tsx)?$/, '.props')}'\n${PageTemplate}`);
-          await fs.writeFile((fullPath).replace(/(.tsx)?$/, '.props.ts'), PropsTemplate);
+          await writeFile((fullPath).replace(/(.tsx)?$/, '.tsx'), `import type {ServerSideProps} from '@/pages/${(path).replace(/(.tsx)?$/, '.props')}'\n${PageTemplate}`);
+          await writeFile((fullPath).replace(/(.tsx)?$/, '.props.ts'), PropsTemplate);
         } catch (e) {
-          throw new Error('Invalid path');
+          throw new Error((e as Error).message || 'Invalid path');
         }
 
         return;
@@ -239,9 +245,9 @@ const createContext = async () => await context({
         try {
           const fullPath = './src/pages/' + path;
           await createDirectory(fullPath);
-          await fs.writeFile((fullPath).replace(/(.ts)?$/, '.ts'), ApiTemplate);
+          await writeFile((fullPath).replace(/(.ts)?$/, '.ts'), ApiTemplate);
         } catch (e) {
-          throw new Error('Invalid path');
+          throw new Error((e as Error).message || 'Invalid path');
         }
         return;
       }
@@ -250,9 +256,9 @@ const createContext = async () => await context({
         try {
           const fullPath = './src/lambda/' + path;
           await createDirectory(fullPath);
-          await fs.writeFile((fullPath).replace(/(.ts)?$/, '.ts'), ApiTemplate);
+          await writeFile((fullPath).replace(/(.ts)?$/, '.ts'), LambdaFunctionTemplate);
         } catch (e) {
-          throw new Error('Invalid path');
+          throw new Error((e as Error).message || 'Invalid path');
         }
         return;
       }

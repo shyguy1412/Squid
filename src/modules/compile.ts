@@ -5,8 +5,15 @@ import path from 'path';
 import fs from "fs/promises";
 import { ExportRenderPlugin } from "@/lib/plugins/RenderPlugin";
 import { ErrorReporterPlugin } from "@/lib/plugins/ErrorReporterPlugin";
+import { GenereateLambdaApi, LambdaApiPlugin } from "@/lib/plugins/LambdaApi";
 
 type Tree = { [key: string]: Tree | string; };
+
+export type SquidOptions = {
+  packageName: string;
+  lambdaGateway?: string;
+  [key: string]: any;
+};
 
 async function getSubfoldersRecusive(p: string): Promise<string[]> {
   const contents = await fs.readdir(p, { recursive: true, withFileTypes: true });
@@ -14,7 +21,8 @@ async function getSubfoldersRecusive(p: string): Promise<string[]> {
     p,
     ...contents
       .filter(f => f.isDirectory())
-      .map(f => './' + path.join(f.path, f.name).replaceAll('\\', '/'))];
+      .map(f => './' + path.join(f.path ?? '', f.name).replaceAll('\\', '/'))
+  ];
 }
 
 //https://stackoverflow.com/questions/15900485/correct-way-to-convert-size-in-bytes-to-kb-mb-gb-in-javascript
@@ -69,7 +77,7 @@ function generateTree(pathList: [string, string[]][]): Tree {
  * and then generates and object representing the folder structure
  * to access them for server side rendering
  */
-const SquidPlugin: Plugin = {
+const SquidPlugin = (squidOptions: SquidOptions) => ({
   name: 'SquidPlugin',
   setup(pluginBuild) {
 
@@ -90,6 +98,7 @@ const SquidPlugin: Plugin = {
       if (fileExists('./build')) {
         await fs.rm('./build', { recursive: true });
       }
+      await fs.mkdir('./build');
     });
 
     //Listener for success message and build information
@@ -168,11 +177,40 @@ const SquidPlugin: Plugin = {
 
       const watchDirs = await getSubfoldersRecusive('./src');
       const additonalPlugins = pluginBuild.initialOptions.plugins?.filter(p => p.name != 'SquidPlugin') ?? [];
+
+      /// SHARED PLUGINS ///
+      additonalPlugins.unshift(LambdaApiPlugin);
+
       try {
+        const { metafile: lambdaMetafile } = await build({
+          ...pluginBuild.initialOptions,
+          entryPoints: lambdaEntrypoints,
+          plugins: [
+            GenereateLambdaApi(squidOptions),
+            ...additonalPlugins
+          ],
+          outExtension: { '.js': '.mjs' },
+          bundle: true,
+          splitting: false,
+          packages: 'external',
+          outbase: './src/lambda',
+          outdir: './build/lambda/src',
+          outfile: undefined,
+          format: 'esm',
+          platform: 'node',
+          logLevel: 'silent',
+          metafile: true,
+        });
+
+        metafiles['lambda'] = lambdaMetafile;
+
         const { metafile: pagesMetafile } = await build({
           ...pluginBuild.initialOptions,
           entryPoints: pagesEntryPoints,
-          plugins: [ExportRenderPlugin, ...additonalPlugins],
+          plugins: [
+            ExportRenderPlugin,
+            ...additonalPlugins
+          ],
           outbase: './src/pages',
           outdir: './build/pages/',
           outfile: undefined,
@@ -208,25 +246,6 @@ const SquidPlugin: Plugin = {
           metafile: true,
         });
         metafiles['api'] = apiMetafile;
-
-        const { metafile: lambdaMetafile } = await build({
-          ...pluginBuild.initialOptions,
-          entryPoints: lambdaEntrypoints,
-          plugins: additonalPlugins,
-          outExtension: { '.js': '.mjs' },
-          bundle: true,
-          splitting: false,
-          packages: 'external',
-          outbase: './src/lambda',
-          outdir: './build/lambda/src',
-          outfile: undefined,
-          format: 'esm',
-          platform: 'node',
-          logLevel: 'silent',
-          metafile: true,
-        });
-
-        metafiles['lambda'] = apiMetafile;
 
         const combinedOutputs = [
           ...Object.keys(pagesMetafile.outputs),
@@ -281,13 +300,26 @@ const SquidPlugin: Plugin = {
       await fs.cp('./node_modules/squid-ssr/src/modules/hydrate.js', './build/public/hydrate.js');
     });
   }
-};
+} as Plugin);
 
-export function context(options: BuildOptions) {
+export async function context(options: BuildOptions) {
+
+  const package_json = JSON.parse((await fs.readFile('./package.json')).toString());
+
+  const SquidOptions: SquidOptions = {
+    lambdaGateway: undefined,
+    packageName: package_json['name']
+  };
+
+  for (const option in SquidOptions) {
+    SquidOptions[option] = (options as Record<string, any>)[option] ?? SquidOptions[option];
+    delete (options as Record<string, any>)[option];
+  }
+
   return esbuildContext({
     tsconfig: 'tsconfig.json',
     ...options,
-    plugins: [SquidPlugin, ErrorReporterPlugin, ...options.plugins ?? []],
+    plugins: [SquidPlugin(SquidOptions), ErrorReporterPlugin, ...options.plugins ?? []],
     entryPoints: ['./src/main.ts'],
     outfile: './build/main.mjs',
     bundle: true,
