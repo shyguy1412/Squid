@@ -1,6 +1,6 @@
 import { h } from 'preact';
 import { Document } from '@/components/Document';
-import { Head } from 'squid-ssr/components';
+import { Head, Body } from 'squid-ssr/components';
 
 export default function App({ }: ServerSideProps) {
 
