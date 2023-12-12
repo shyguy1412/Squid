@@ -5,7 +5,7 @@ import path from 'path';
 import fs from "fs/promises";
 import { ExportRenderPlugin } from "@/lib/plugins/RenderPlugin";
 import { ErrorReporterPlugin } from "@/lib/plugins/ErrorReporterPlugin";
-import { GenereateLambdaApi, LambdaApiPlugin } from "@/lib/plugins/LambdaApi";
+import { GenereateApiPlugin, ConsumeApiPlugin } from "@/lib/plugins/SquidApiPlugin";
 
 type Tree = { [key: string]: Tree | string; };
 
@@ -113,6 +113,7 @@ const SquidPlugin = (squidOptions: SquidOptions) => ({
       console.log();
       console.log(formatOutputFiles(metafiles.pages!.outputs).join('\n'));
       console.log(formatOutputFiles(metafiles.api!.outputs).join('\n'));
+      console.log(formatOutputFiles(metafiles.lambda!.outputs).join('\n'));
       console.log(formatOutputFiles(result.metafile!.outputs).join('\n'));
       console.log();
       console.log(`Frontend:   \x1b[32m${formatBytes([
@@ -121,6 +122,9 @@ const SquidPlugin = (squidOptions: SquidOptions) => ({
       console.log(`Backend:    \x1b[32m${formatBytes([
         ...Object.values(metafiles.api!.outputs).map(v => v.bytes),
         ...Object.values(result.metafile!.outputs).map(v => v.bytes),
+      ].reduce((prev, cur) => prev + cur))}\x1b[0m`);
+      console.log(`Lambda:    \x1b[32m${formatBytes([
+        ...Object.values(metafiles.lambda!.outputs).map(v => v.bytes),
       ].reduce((prev, cur) => prev + cur))}\x1b[0m`);
       console.log(`Total size: \x1b[32m${formatBytes([
         ...Object.values(metafiles.pages!.outputs).map(v => v.bytes),
@@ -179,14 +183,14 @@ const SquidPlugin = (squidOptions: SquidOptions) => ({
       const additonalPlugins = pluginBuild.initialOptions.plugins?.filter(p => p.name != 'SquidPlugin') ?? [];
 
       /// SHARED PLUGINS ///
-      additonalPlugins.unshift(LambdaApiPlugin);
+      additonalPlugins.unshift(ConsumeApiPlugin);
 
       try {
         const { metafile: lambdaMetafile } = await build({
           ...pluginBuild.initialOptions,
           entryPoints: lambdaEntrypoints,
           plugins: [
-            GenereateLambdaApi(squidOptions),
+            GenereateApiPlugin(squidOptions, 'lambda'),
             ...additonalPlugins
           ],
           outExtension: { '.js': '.mjs' },
@@ -203,6 +207,27 @@ const SquidPlugin = (squidOptions: SquidOptions) => ({
         });
 
         metafiles['lambda'] = lambdaMetafile;
+
+        const { metafile: apiMetafile } = await build({
+          ...pluginBuild.initialOptions,
+          entryPoints: apiEntryPoints,
+          plugins: [
+            GenereateApiPlugin(squidOptions, 'api'),
+            ...additonalPlugins
+          ],
+          outExtension: { '.js': '.mjs' },
+          bundle: true,
+          splitting: true,
+          packages: 'external',
+          outbase: './src/pages',
+          outdir: './build/pages',
+          outfile: undefined,
+          format: 'esm',
+          platform: 'node',
+          logLevel: 'silent',
+          metafile: true,
+        });
+        metafiles['api'] = apiMetafile;
 
         const { metafile: pagesMetafile } = await build({
           ...pluginBuild.initialOptions,
@@ -226,26 +251,7 @@ const SquidPlugin = (squidOptions: SquidOptions) => ({
           metafile: true,
           alias: { 'react': 'preact/compat' },
         });
-
         metafiles['pages'] = pagesMetafile;
-
-        const { metafile: apiMetafile } = await build({
-          ...pluginBuild.initialOptions,
-          entryPoints: apiEntryPoints,
-          plugins: additonalPlugins,
-          outExtension: { '.js': '.mjs' },
-          bundle: true,
-          splitting: true,
-          packages: 'external',
-          outbase: './src/pages',
-          outdir: './build/pages',
-          outfile: undefined,
-          format: 'esm',
-          platform: 'node',
-          logLevel: 'silent',
-          metafile: true,
-        });
-        metafiles['api'] = apiMetafile;
 
         const combinedOutputs = [
           ...Object.keys(pagesMetafile.outputs),
