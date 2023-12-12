@@ -12,11 +12,17 @@ class ServerSentEventStream extends EventTarget {
     const headers = {
       'Content-Type': 'text/event-stream',
       'Connection': 'keep-alive',
-      'Cache-Control': 'no-cache'
+      'Cache-Control': 'no-cache',
+      'X-Accel-Buffering': 'no',
     };
+    
     res.writeHead(200, headers);
 
-    res.on('close', () => { this.dispatchEvent(new Event('close')); });
+    const interval = setInterval(() => {
+      this.send('heartbeat');
+    }, 1000);
+
+    res.on('close', () => { this.dispatchEvent(new Event('close')); clearInterval(interval); });
   }
 
   close() {
