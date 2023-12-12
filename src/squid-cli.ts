@@ -88,12 +88,14 @@ const createContext = async () => await context({
     });
 
   const lambda = program
-    .command('lambda');
+    .command('lambda')
+    .description('build, push and deploy squid lambda functions');
 
   lambda.command('build')
+    .description('build the functions, config files and containers')
     .option('-p, --prefix <prefix>', 'prefix for the containers')
     .option('-r, --registry <registry>', 'Private Registry, if not given this will default to DockerHub')
-    .option('-D, --no-docker', 'generates lambda functions and dockerfiles but skips building the container. Use this when building on a server for deployment')
+    .option('-D, --no-docker', 'skip building the containers. Use this when building on a server for deployment')
     .action(async (opts) => {
       await exec(npmExec, ['run', 'build'], {
         cwd: process.cwd(),
@@ -136,7 +138,7 @@ const createContext = async () => await context({
 
         await fs.copyFile('./package.json', `${buildDir}/package.json`);
         // const packageJson = JSON.parse((await fs.readFile('./package.json')).toString('utf-8'));
-        // delete packageJson['dependencies']['squid-ssr'];
+        // packageJson['dependencies']['squid-ssr'] = '^0.0.6';
         // await fs.writeFile(`${buildDir}/package.json`, JSON.stringify(packageJson));
 
         // console.log(`-t${opts.registry ? opts.registry + '/' : ''}${(opts.prefix ? opts.prefix.replace(/\/?$/, '/') : '')}${functionName}:latest`);
@@ -155,6 +157,7 @@ const createContext = async () => await context({
     });
 
   lambda.command('push')
+    .description('push built functions into the registry')
     .action(async () => {
       const lambdaDir = (await fs.readdir('./build/lambda/build', { withFileTypes: true }))
         .filter(f => f.isDirectory())
@@ -175,6 +178,7 @@ const createContext = async () => await context({
     });
 
   lambda.command('deploy')
+    .description('executed on the server running openfaas. Deploys the functions to openfaas')
     .action(async () => {
       const lambdaDir = (await fs.readdir('./build/lambda/build', { withFileTypes: true }))
         .filter(f => f.isDirectory())
