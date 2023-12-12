@@ -322,6 +322,8 @@ export async function context(options: BuildOptions) {
     delete (options as Record<string, any>)[option];
   }
 
+  options.chunkNames = '__chunks/[name]-[hash]';
+
   return esbuildContext({
     tsconfig: 'tsconfig.json',
     ...options,
