@@ -95,7 +95,8 @@ const createContext = async () => await context({
     .description('build the functions, config files and containers')
     .option('-p, --prefix <prefix>', 'prefix for the containers')
     .option('-r, --registry <registry>', 'Private Registry, if not given this will default to DockerHub')
-    .option('-D, --no-docker', 'skip building the containers. Use this when building on a server for deployment')
+    .option('-g, --gateway <gateway-url>', 'gateway where the functions will be deployed')
+    .option('-D, --no-docker', 'only build the packages and config, skip building the containers')
     .action(async (opts) => {
       await exec(npmExec, ['run', 'build'], {
         cwd: process.cwd(),
@@ -138,7 +139,7 @@ const createContext = async () => await context({
 
         await fs.copyFile('./package.json', `${buildDir}/package.json`);
         // const packageJson = JSON.parse((await fs.readFile('./package.json')).toString('utf-8'));
-        // packageJson['dependencies']['squid-ssr'] = '^0.0.6';
+        // packageJson['dependencies']['squid-ssr'] = '^0.0.8';
         // await fs.writeFile(`${buildDir}/package.json`, JSON.stringify(packageJson));
 
         // console.log(`-t${opts.registry ? opts.registry + '/' : ''}${(opts.prefix ? opts.prefix.replace(/\/?$/, '/') : '')}${functionName}:latest`);
@@ -193,7 +194,9 @@ const createContext = async () => await context({
           'deploy',
           `--image`,
           `${config.registry ? config.registry + '/' : ''}${(config.prefix ? config.prefix.replace(/\/?$/, '/') : '')}${functionName}:latest`,
-          `--name`, `${functionName}`], {
+          `--name`, `${functionName}`,
+          `--gateway`, config.gateway ?? 'http://127.0.0.1:8080',
+        ], {
           cwd: process.cwd(),
           stdio: "inherit"
         });
