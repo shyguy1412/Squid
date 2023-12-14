@@ -115,9 +115,10 @@ const createContext = async () => await context({
       const lambdaDir = await fs.readdir('./build/lambda/src', { recursive: true, })
         .then(f => f.filter(f => f.endsWith('.mjs')))
         .then(f => f.map(f => [
-          f, packageName + '-' + f
+          f, (packageName + '-' + f)
             .replaceAll('\\', '/')
             .replaceAll('/', '-')
+            .replaceAll(/-?([A-Z])/g, (_, x: string) => '-' + x.toLowerCase())
             .split('.')[0]
         ]));
 
@@ -137,10 +138,10 @@ const createContext = async () => await context({
           fs.copyFile(`./build/lambda/src/${file}`, `${buildDir}/handler.mjs`)
         ]);
 
-        await fs.copyFile('./package.json', `${buildDir}/package.json`);
-        // const packageJson = JSON.parse((await fs.readFile('./package.json')).toString('utf-8'));
-        // packageJson['dependencies']['squid-ssr'] = '^0.0.8';
-        // await fs.writeFile(`${buildDir}/package.json`, JSON.stringify(packageJson));
+        // await fs.copyFile('./package.json', `${buildDir}/package.json`);
+        const packageJson = JSON.parse((await fs.readFile('./package.json')).toString('utf-8'));
+        packageJson['dependencies']['squid-ssr'] = '^0.0.8';
+        await fs.writeFile(`${buildDir}/package.json`, JSON.stringify(packageJson));
 
         // console.log(`-t${opts.registry ? opts.registry + '/' : ''}${(opts.prefix ? opts.prefix.replace(/\/?$/, '/') : '')}${functionName}:latest`);
 

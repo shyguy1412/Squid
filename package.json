@@ -1,6 +1,6 @@
 {
   "name": "squid-ssr",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "Preact SSR Framework",
   "main": "src/index.ts",
   "scripts": {
