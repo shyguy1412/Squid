@@ -1,4 +1,3 @@
-import { tryJSONParse } from "@/lib/utils";
 import { Request, Response } from "express";
 
 
@@ -9,7 +8,14 @@ export function useCookies(req: Request, res: Response) {
 
   const newCookies: Cookie[] = [];
   const cookies: { [k: string]: any; } = {};
-  Object.keys(req.cookies).forEach(k => cookies[k] = tryJSONParse(req.cookies[k]));
+
+  for (const k in req.cookies) {
+    try {
+      cookies[k] = JSON.parse(req.cookies[k]);
+    } catch {
+      cookies[k] = req.cookies[k];
+    }
+  }
 
   return {
     ...cookies,
