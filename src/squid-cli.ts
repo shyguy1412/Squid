@@ -6,7 +6,6 @@ import nodemon from "nodemon";
 import path from "path";
 import fs from "fs/promises";
 import { existsSync as fileExists } from "fs";
-import { context } from "@/modules/compile";
 import { platform } from "os";
 
 import PageTemplate from '@/templates/Page.txt';
@@ -20,11 +19,6 @@ import LambdaEntrypoint from '@/templates/lambda/entrypoint.txt';
 import LambdaFunctionTemplate from '@/templates/lambda/LambdaFunction.txt';
 
 const npmExec = platform() == 'win32' ? 'npm.cmd' : 'npm';
-
-const createContext = async () => await context({
-  splitting: true,
-  tsconfig: './tsconfig.json',
-});
 
 (async () => {
   let packageName = '';
@@ -40,42 +34,6 @@ const createContext = async () => await context({
     console.log('Make sure to run squid in your project root!');
     process.exit(1);
   }
-
-  program
-    .command('build')
-    .description('Build project for production')
-    .action(async () => {
-      const { rebuild, dispose } = await createContext();
-
-      try {
-        await rebuild();
-      } catch (e) { }
-
-      await dispose();
-    });
-
-  program
-    .command('dev')
-    .description('Starts Squid server and rebuilds development build of the project on file changes')
-    .action(async () => {
-
-      const { rebuild, watch } = await createContext();
-
-      // await rebuild();
-      await watch();
-
-      //esbuild sadly doesnt have a way to wait for the first build
-      //so polling it is
-      while (!fileExists('./build/main.mjs')) {
-        await new Promise<void>(resolve => setTimeout(() => resolve(), 100));
-      }
-
-      nodemon({
-        scriptPosition: 0,
-        script: './build/main.mjs',
-        args: []
-      });
-    });
 
   program
     .command('start')

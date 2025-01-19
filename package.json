@@ -9,6 +9,7 @@
     "dev": "node build.mjs --watch",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "type": "module",
   "exports": {
     ".": {
       "default": "./dist/index.js"
@@ -16,12 +17,15 @@
     "./pages": {
       "types": "./src/modules/Pages.d.ts"
     },
+    "./middleware": {
+      "default": "./dist/middleware.js"
+    },
     "./components": {
-      "default": "./src/components/index.tsx"
+      "default": "./dist/components/index.js"
     },
     "./hooks/server": {
-      "default": "./dist/hooks/index.js",
-      "types": "./dist/hooks/index.d.ts"
+      "types": "./dist/hooks/index.d.ts",
+      "default": "./dist/hooks/index.js"
     },
     "./hooks/client": {
       "default": "./src/hooks/client/index.ts"
@@ -29,9 +33,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/NilsRamstoeck/Squid"
+    "url": "https://github.com/shyguy1412/Squid"
   },
-  "author": "Nils Ramstöck",
+  "author": "Shy",
   "license": "MIT",
   "bin": {
     "squid": "./dist/squid-cli.js"
@@ -45,20 +49,23 @@
     "squid"
   ],
   "peerDependencies": {
-    "@types/express": "^4.17.21",
-    "express": "^4.18.2",
-    "preact": "^10.19.2",
-    "preact-render-to-string": "^6.3.1"
+    "@types/express": "^5.0.0",
+    "express": "^4.21.2",
+    "preact": "^10.25.4",
+    "preact-render-to-string": "^6.5.12"
   },
   "dependencies": {
-    "@types/express": "^4.17.21",
-    "commander": "^11.1.0",
-    "esbuild": "^0.19.8",
-    "glob": "^10.3.10",
-    "nodemon": "^3.0.2"
+    "acorn": "^8.14.0",
+    "acorn-walk": "^8.3.4",
+    "astring": "^1.9.0",
+    "commander": "^13.0.0",
+    "esbuild": "^0.24.2",
+    "glob": "^11.0.1",
+    "nodemon": "^3.1.9",
+    "typescript": "^5.7.3"
   },
   "devDependencies": {
-    "@types/node": "^20.10.4",
+    "@types/node": "^22.10.5",
     "@types/nodemon": "^1.19.6"
   }
 }

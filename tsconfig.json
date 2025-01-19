@@ -4,6 +4,7 @@
     "lib": [
       "esnext"
     ],
+    "skipLibCheck": true,
     "esModuleInterop": true,
     "strict": true,
     "module": "esnext",

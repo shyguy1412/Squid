@@ -6,7 +6,6 @@ const methods = {
   POST: (req: Request, res: Response) => _post(req, res),
   PUT: (req: Request, res: Response) => _put(req, res),
   DELETE: (req: Request, res: Response) => _delete(req, res),
-  UPDATE: (req: Request, res: Response) => _update(req, res),
   OPTIONS: (req: Request, res: Response) => _options(req, res),
   TRACE: (req: Request, res: Response) => _trace(req, res),
 };
@@ -35,9 +34,6 @@ async function _delete(req: Request, res: Response) {
 }
 
 async function _head(req: Request, res: Response<any>) {
-  res.status(400).send('Method does not exist for this route');
-}
-async function _update(req: Request, res: Response<any>) {
   res.status(400).send('Method does not exist for this route');
 }
 

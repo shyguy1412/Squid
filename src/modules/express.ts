@@ -6,7 +6,8 @@ import path from "path";
 import { parse } from 'url';
 import { existsSync as fileExists } from 'fs';
 import { SquidModuleMap } from '@/modules/Pages';
-
+import { h } from 'preact';
+import { render } from 'preact-render-to-string';
 export type ServerSideProps = {
   props?: {
     [key: string]: string;
@@ -16,11 +17,11 @@ export type ServerSideProps = {
 
 export type SquidModule = {
   default: FunctionComponent<any>,
-  h: typeof import('preact').h,
-  render: typeof import('preact-render-to-string').render,
-  // getServerSideProps?: (req: Request, res: Response) => ServerSideProps | Promise<ServerSideProps>,
+  getServerSideProps?: (req: Request, res: Response) => ServerSideProps | Promise<ServerSideProps>;
+  api: false,
 } | {
-  default: (req: Request, res: Response) => ServerSideProps | Promise<ServerSideProps>,
+  default: (req: Request, res: Response) => void | Promise<void>,
+  api: true;
 };
 
 /**
@@ -62,7 +63,6 @@ async function resolveRequestPathToModule(url: string, moduleMap: SquidModuleMap
 
       return {
         module: module as SquidModule,
-        props: (position as SquidModuleMap)[`${node}.props`] as SquidModule,
       };
 
     }
@@ -75,15 +75,13 @@ async function resolveRequestPathToModule(url: string, moduleMap: SquidModuleMap
 
   if (!module) return {
     module: null,
-    props: null,
     path: null,
     queryParams: {}
   };
 
   return {
     module,
-    props,
-    path: path.resolve(`build/pages/${moduleFragments.join('/')}.mjs`),
+    path: path.resolve(`build/pages/${moduleFragments.join('/')}.js`),
     queryParams
   };
 }
@@ -127,40 +125,51 @@ function page(moduleMap: SquidModuleMap) {
   return async function (req: Request, res: Response, next: NextFunction) {
 
     const requestPath = parse(req.originalUrl).path ?? '';
-    const { module, props, queryParams } = await resolveRequestPathToModule(requestPath, moduleMap);
+    const { module, queryParams } = await resolveRequestPathToModule(requestPath, moduleMap);
 
     if (!module) return next();
-
-    if (props && 'h' in props && 'render' in props) {
-      throw new Error("Props should only export getSeverSideProps");
-    }
 
     Object.assign(req.params, queryParams);
 
     try {
-      if ('h' in module && 'render' in module) {
-        if (req.method.toLowerCase() != 'get') return next();
-
-        const { render, h, default: App } = module;
-        const { default: getServerSideProps } = props ?? { getServerSideProps: undefined };
-        if (getServerSideProps && typeof getServerSideProps != 'function') {
-          throw new Error('ServerSideProps need to be a function');
-        }
-        const serverSideProps = getServerSideProps ? await getServerSideProps(req, res) : undefined;
-        // const props = serverSideProps ? serverSideProps.props : {};
-        // const redirect = serverSideProps ? serverSideProps.redirect : undefined;
-
-        if (serverSideProps?.redirect) {
-          return res.redirect(serverSideProps.redirect);
-        }
-        const renderedHTML = '<!DOCTYPE html>\n' + render(h(App, serverSideProps?.props))
-          .replace('<head>', `<head><script>window['squid-ssr-props'] = JSON.parse('${JSON.stringify(serverSideProps?.props ?? {}).replaceAll('\\', '\\\\')}');</script><script src="/hydrate.js" defer></script>`);
-
-        res.send(renderedHTML);
+      if (module.api) {
+        const { default: handler } = module;
+        await handler(req, res);
         return;
       }
 
-      module.default(req, res);
+      if (req.method.toLowerCase() != 'get') return next();
+
+      const { default: App, getServerSideProps } = module;
+      // const { default: getServerSideProps } = props ?? { getServerSideProps: undefined };
+      if (getServerSideProps && typeof getServerSideProps != 'function') {
+        throw new Error('ServerSideProps need to be a function');
+      }
+
+      const serverSideProps = getServerSideProps ? await getServerSideProps(req, res) : undefined;
+
+      if (serverSideProps?.redirect) {
+        return res.redirect(serverSideProps.redirect);
+      }
+
+      const serialized_props = JSON.stringify(serverSideProps?.props).replaceAll('\\', '\\\\');
+
+      const renderedHTML = '<!DOCTYPE html>\n' + render(h(App, {}))
+        .replace('<head>', `<head>
+          <script>
+          
+          (async () => {
+            const appPath = window.location.pathname + "?hydrate";
+            const { default: App, h, hydrate } = await import(appPath);
+            hydrate(h(App, JSON.parse('${serialized_props}')), document.body);
+          })();
+          
+          </script>`);
+
+      res.send(renderedHTML);
+      return;
+
+      // module.default(req, res);
     } catch (e) {
       console.error(e);
       res.status(500).send('Internal Server Error');

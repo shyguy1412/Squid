@@ -21,17 +21,18 @@ const ctx = await context({
   entryPoints: [
     './src/squid-cli.ts',
     './src/hooks/index.ts',
-    './src/index.ts'
+    './src/index.ts',
+    './src/components/index.tsx',
+    './src/middleware.ts'
   ],
   bundle: true,
   plugins: [typePlugin],
   packages: 'external',
-  // outExtension: {'.js': '.mjs'},
   outdir: './dist',
   outbase: "./src",
   tsconfig: './tsconfig.json',
   minify: false,
-  format: 'cjs',
+  format: 'esm',
   platform: 'node',
   define: WATCH ? undefined : {
     'process.env.NODE_ENV': "'production'",
